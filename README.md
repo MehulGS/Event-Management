@@ -32,7 +32,13 @@ A responsive full-stack web application where administrators manage community ev
 | Public event listing with category, city, and keyword filters | ⬜ Planned |
 | Pagination | ⬜ Planned |
 | Event detail view | ⬜ Planned |
-| User registration and login | ⬜ Planned |
+| User registration (`POST /api/auth/signup`) | ✅ Implemented |
+| User login (`POST /api/auth/login`) | ✅ Implemented |
+| JWT HTTP-only cookie auth | ✅ Implemented |
+| Current user (`GET /api/auth/me`) | ✅ Implemented |
+| Logout (`POST /api/auth/logout`) | ✅ Implemented |
+| Admin provisioning (`npm run seed-admin`) | ✅ Implemented |
+| Admin identity test (`GET /api/admin/me`) | ✅ Implemented |
 | Admin event creation, editing, and activation/deactivation | ⬜ Planned |
 | Favourite category selection | ⬜ Planned |
 | Personalised My Feed | ⬜ Planned |
@@ -41,7 +47,7 @@ A responsive full-stack web application where administrators manage community ev
 | Claymorphism UI | ⬜ Planned |
 | Responsive layout (mobile and desktop) | ⬜ Planned |
 
-**Phase 1 (Backend Foundation)** and **Phase 2 (Database Models and Seed Data)** are complete. All other features are planned.
+**Phase 1 (Backend Foundation)**, **Phase 2 (Database Models and Seed Data)**, and **Phase 3 (Authentication and Authorization APIs)** are complete. All other features are planned.
 
 ---
 
@@ -125,47 +131,69 @@ Copy `.env.example` to `.env.local` and provide values for each variable. **Neve
 ## Development Commands
 
 ```bash
-npm run dev      # Start development server with Turbopack (http://localhost:3000)
-npm run build    # Production build
-npm run start    # Start the production server (requires a prior build)
-npm run lint     # Run ESLint
-npm run seed     # Seed 15 sample events into the database
+npm run dev        # Start development server with Turbopack (http://localhost:3000)
+npm run build      # Production build
+npm run start      # Start the production server (requires a prior build)
+npm run lint       # Run ESLint
+npm run seed       # Seed 15 sample events into the database
+npm run seed-admin # Provision the admin account (idempotent, safe to re-run)
 ```
 
-> Seed command: `npm run seed` (uses `npx tsx scripts/seed-events.ts` internally). Requires `MONGODB_URI` to be set. Safe to re-run — uses upsert and does not create duplicates.
+> **Seed events**: `npm run seed` (uses `npx tsx scripts/seed-events.ts`). Requires `MONGODB_URI` to be set. Safe to re-run — uses upsert and does not create duplicates.
+>
+> **Seed admin**: `npm run seed-admin` reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from environment variables. Run once before testing admin login. Safe to re-run. See [Admin Login Configuration](#admin-login-configuration) for details.
 
 ---
 
 ## Admin Login Configuration
 
-The admin account is seeded from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env.local`. There is no public admin registration endpoint.
+The admin account is created using the `npm run seed-admin` command, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your `.env` or `.env.local` file. **There is no public admin registration endpoint** — the signup API always assigns `role: "user"` regardless of what is submitted in the request body.
 
-Once the seed script is implemented (Phase 2 of the development plan), run it once to create the admin account in your Atlas database before attempting to log in.
+### Provisioning the admin account
 
-Admin pages are accessible at `/admin`. Both the Next.js middleware and API route guards enforce the `admin` role — a regular user account cannot access admin functionality.
+```bash
+# Ensure ADMIN_EMAIL and ADMIN_PASSWORD are set in .env.local, then:
+npm run seed-admin
+```
+
+**What the script does:**
+- Creates the admin account if it does not exist.
+- Leaves it unchanged if it exists with the correct password hash.
+- Updates the password hash if `ADMIN_PASSWORD` has changed (credential rotation).
+- **Refuses to promote an existing normal user account.** If the email already belongs to a `user`-role account, the script exits with an error. Promotion requires manual action in MongoDB Atlas.
+
+**Changing the admin password:** Update `ADMIN_PASSWORD` in your environment and re-run `npm run seed-admin`. The admin must log in again after the change.
+
+### Testing admin login
+
+Once provisioned, log in via `POST /api/auth/login` with the configured credentials. The response sets a `token` HTTP-only cookie. Verify admin access with `GET /api/admin/me`.
+
+Admin pages at `/admin/*` will be protected by Next.js Edge Middleware in a future phase. The API routes already enforce admin authorization server-side.
 
 ---
 
 ## API Documentation
 
-See [`docs/API.md`](docs/API.md) for the full proposed REST API contract.
+See [`docs/API.md`](docs/API.md) for the full REST API contract.
 
 **Base path**: `/api`
 
 Quick reference:
 
-| Area | Endpoints |
-|---|---|
-| Auth | `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout` |
-| Public events | `GET /api/events`, `GET /api/events/:id` |
-| Admin events | `POST /api/events`, `PATCH /api/events/:id`, `PATCH /api/events/:id/status` |
-| Favourites | `GET /api/user/favourites`, `PUT /api/user/favourites` |
-| My Feed | `GET /api/user/feed` |
-| Reminders | `GET /api/user/reminders`, `POST /api/user/reminders`, `DELETE /api/user/reminders/:eventId` |
-| Card design | `GET /api/user/card-design`, `PUT /api/user/card-design` |
-| Health | `GET /api/health` |
-
-> All other endpoints are proposed. The health endpoint is implemented.
+| Area | Endpoints | Status |
+|---|---|---|
+| Health | `GET /api/health` | ✅ Live |
+| Auth | `POST /api/auth/signup` | ✅ Live |
+| Auth | `POST /api/auth/login` | ✅ Live |
+| Auth | `GET /api/auth/me` | ✅ Live |
+| Auth | `POST /api/auth/logout` | ✅ Live |
+| Admin test | `GET /api/admin/me` | ✅ Live |
+| Public events | `GET /api/events`, `GET /api/events/:id` | ⬜ Planned |
+| Admin events | `POST /api/events`, `PATCH /api/events/:id` | ⬜ Planned |
+| Favourites | `GET/PUT /api/user/favourites` | ⬜ Planned |
+| My Feed | `GET /api/user/feed` | ⬜ Planned |
+| Reminders | `GET/POST/DELETE /api/user/reminders` | ⬜ Planned |
+| Card design | `GET/PUT /api/user/card-design` | ⬜ Planned |
 
 ---
 
@@ -181,20 +209,39 @@ Collections: `events`, `users`, `reminders`, `carddesigns`.
 
 - Passwords are hashed with `bcryptjs` (saltRounds = 12). Plain-text passwords are never stored or logged.
 - JWTs are signed with a secret stored only in environment variables.
-- Tokens are delivered in `HttpOnly`, `Secure`, `SameSite=Strict` cookies, preventing JavaScript access.
+- Tokens are delivered in `HttpOnly`, `SameSite=Strict` cookies (also `Secure` in production), preventing JavaScript access.
 - All API inputs are validated with Zod before reaching the database.
+- The `role` field is never accepted from the client — signup always assigns `"user"` server-side.
+- Admin is provisioned via `npm run seed-admin` only; no public endpoint can create an admin.
+- All state-changing auth endpoints perform an `Origin` header check (in addition to `SameSite=Strict`) as a CSRF defence.
+- Admin-sensitive endpoints re-read the user's role from the database rather than trusting the JWT claim.
 - The `.env.local` file is git-ignored. `.env.example` contains no real credentials.
-- Admin routes are protected by both Edge Middleware and per-route role checks (defence in depth).
-
-> The above describes the intended implementation. Security controls have not yet been implemented or verified.
 
 ---
 
 ## Testing Instructions
 
-Automated testing has not been set up. Manual testing instructions will be added once the API routes are implemented.
+### Manual API testing (Phase 3 — auth)
 
-Refer to the [Testing Checklist](docs/DEVELOPMENT-PLAN.md#testing-checklist) in `docs/DEVELOPMENT-PLAN.md` for the full list of scenarios to verify.
+Use any HTTP client (Postman, Bruno, curl) to exercise the auth endpoints. For browser-based testing, the `token` cookie is set automatically.
+
+```
+POST /api/auth/signup    { "email": "...", "password": "..." }
+POST /api/auth/login     { "email": "...", "password": "..." }
+GET  /api/auth/me        (requires token cookie)
+POST /api/auth/logout
+GET  /api/admin/me       (requires admin token cookie)
+```
+
+All tested scenarios and actual results are recorded in [`docs/DEVELOPMENT-PLAN.md`](docs/DEVELOPMENT-PLAN.md#testing-checklist).
+
+### Running checks
+
+```bash
+npx tsc --noEmit   # TypeScript type check
+npm run lint       # ESLint
+npm run build      # Production build
+```
 
 ---
 
@@ -210,7 +257,13 @@ The public event listing filters by `{ isActive: true }` first, then optionally 
 
 ### 3. How are passwords stored, and how are the admin page and API protected?
 
-Passwords are hashed with `bcryptjs` at saltRounds = 12 before being saved to the database. The plain-text password is never persisted or logged. Admin protection is implemented at two layers: Next.js Edge Middleware intercepts requests to `/admin/*` and redirects unauthenticated users to the login page; each admin API route independently verifies the JWT and checks that `role === 'admin'`, returning `403 FORBIDDEN` otherwise. Pending verification — security controls have not been implemented yet.
+Passwords are hashed with `bcryptjs` at saltRounds = 12 before being saved to the database. The plain-text password is never persisted or logged.
+
+**Admin provisioning**: The admin account is created exclusively via `npm run seed-admin`, which reads credentials from environment variables server-side. The signup API enforces `role: "user"` regardless of any `role` field in the request body — there is no way to self-register as admin.
+
+**API authorization**: Each protected API route calls `getAuthFromRequest()` (from `src/lib/auth.ts`) to extract and verify the JWT from the cookie. For admin endpoints, the user's role is re-read from the database (not taken from the token) to ensure freshness. Unauthenticated requests receive `401 UNAUTHORIZED`; authenticated non-admin requests receive `403 FORBIDDEN`.
+
+**Defence in depth**: `SameSite=Strict` cookies prevent CSRF from cross-site pages. All state-changing auth endpoints additionally check the `Origin` header via `src/lib/csrf.ts`. Next.js Edge Middleware (planned) will add a third layer for page-level redirects.
 
 ---
 
@@ -224,15 +277,14 @@ The usage log will be completed honestly at the end of development. All code gen
 
 ## Known Limitations and Remaining Work
 
-- **Features are not yet implemented.** The codebase contains the Next.js scaffold, MongoDB connection utility, shared API response helpers, environment validation, the `/api/health` endpoint, all four Mongoose models (`Event`, `User`, `Reminder`, `CardDesign`), and 15 seeded sample events across all categories and multiple Indian cities.
-- `lucide-react` and `framer-motion` have not been installed.
-- The seed script does not exist yet.
-- No user-facing API routes, UI components, or authentication logic have been built.
-- The admin account cannot be created until the auth service is implemented in Phase 3.
+- **Event management, user features, and UI are not yet implemented.** Phases 4–9 remain planned.
+- `lucide-react` and `framer-motion` have not been installed (needed for Phase 9 UI).
+- Next.js Edge Middleware (`src/middleware.ts`) for page-level route protection is not yet implemented.
+- JWTs are stateless; there is no server-side revocation mechanism. If token revocation before expiry is required, a deny-list (e.g. Redis) would need to be added.
+- No rate limiting is currently planned; add before production deployment.
+- The MongoDB connection string in `.env` does not specify a database name, causing Mongoose to use the default `test` database. Update the URI to include the database name before production (e.g. `.../community-events-board?retryWrites=true&w=majority`).
 - Image upload is not planned; `imageUrl` accepts an external URL only.
-- No rate limiting is currently planned.
-- Full WCAG compliance requires manual testing with assistive technologies beyond what is covered in this plan.
-- The MongoDB connection string in `.env` does not specify a database name, so Mongoose connects to the default `test` database. Update the URI to include the database name (e.g. `.../community-events-board?retryWrites=true&w=majority`) before populating data.
+- Full WCAG compliance requires manual testing with assistive technologies.
 
 ---
 

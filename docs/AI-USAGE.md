@@ -26,11 +26,10 @@ This project was developed with AI-assisted tooling. The following policy govern
 
 ## Actual AI Assistance Log
 
-> **Instructions**: Fill in this table at the end of the project with honest, specific records. Do not invent entries. Do not omit significant uses.
-
 | Date | Tool | Task | Notes |
 |---|---|---|---|
-| — | — | — | *No entries yet. Record each significant use here as the project progresses.* |
+| 2026-10-12 | Kiro (Claude) | Generated initial documentation set (`ARCHITECTURE.md`, `DATABASE.md`, `API.md`, `DESIGN-SYSTEM.md`, `DEVELOPMENT-PLAN.md`, `README.md`) | All content reviewed and adjusted to match actual project state |
+| 2026-10-12 | Kiro (Claude) | Implemented Phase 3 authentication: `src/lib/auth.ts`, `src/lib/csrf.ts`, `/api/auth/signup`, `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`, `/api/admin/me`, `scripts/seed-admin.ts` | Fixed Zod v4 incompatibility (`required_error` → `.min(1)`); all routes type-checked, linted, built, and live-tested against MongoDB Atlas |
 
 ### Example entry format (delete this before submission)
 

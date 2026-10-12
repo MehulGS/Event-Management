@@ -1,6 +1,6 @@
 # API Reference — Community Events Board
 
-> **Status**: Proposed contract. No API routes have been implemented yet. This document defines the intended REST API that will be built in Phases 3–8 of the development plan. All endpoints, request shapes, and response shapes are subject to change until implemented and tested.
+> **Status**: Partially implemented. Authentication endpoints (Phase 3) are live and tested. Event management, user features, and admin dashboard APIs remain planned (Phases 4–8).
 
 ---
 
@@ -147,6 +147,8 @@ Returns the application and database status. No authentication required.
 
 ## Auth Endpoints
 
+> **[Implemented — Phase 3]** All auth endpoints are live. See `src/app/api/auth/` and `src/app/api/admin/me/`.
+
 ### `POST /api/auth/signup`
 
 Registers a new user account. Only the `user` role can be self-registered.
@@ -208,26 +210,79 @@ Sets `token` as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie.
   "user": {
     "id": "64a1b2c3d4e5f6a7b8c9d0e1",
     "email": "visitor@example.com",
-    "displayName": "Alex",
     "role": "user"
-  },
-  "token": "<jwt>"
+  }
 }
 ```
+
+> **Note**: The JWT is delivered only via the `Set-Cookie` header (HTTP-only cookie). It is NOT included in the response body. This prevents JavaScript from reading the token and mitigates XSS token theft.
 
 **Errors**: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED` (wrong credentials)
 
 ---
 
-### `POST /api/auth/logout`
+### `GET /api/auth/me`
 
-🔒 Clears the JWT cookie.
+🔒 Returns the authenticated user's safe profile.
+
+> **[Implemented — Phase 3]** `src/app/api/auth/me/route.ts`
 
 **Response 200**
 
 ```json
-{ "message": "Logged out successfully." }
+{
+  "success": true,
+  "user": {
+    "id": "64a1b2c3d4e5f6a7b8c9d0e1",
+    "email": "visitor@example.com",
+    "role": "user",
+    "favouriteCategories": [],
+    "createdAt": "2026-10-12T18:00:00.000Z"
+  }
+}
 ```
+
+**Errors**: `401 UNAUTHORIZED` (missing, invalid, or expired token)
+
+---
+
+### `POST /api/auth/logout`
+
+Clears the JWT cookie. No authentication required (logout always succeeds).
+
+**Response 200**
+
+```json
+{ "success": true, "message": "Logged out successfully." }
+```
+
+> Sets `token=; Max-Age=0` cookie to clear the session.
+
+---
+
+### `GET /api/admin/me`
+
+🛡️ Verifies admin identity. Used to confirm authentication and admin authorization are working.
+
+> **[Implemented — Phase 3]** `src/app/api/admin/me/route.ts`
+> Authorization is enforced by re-reading the user's role from the database — not from the JWT claim — so a role change in the DB takes effect immediately.
+
+**Response 200**
+
+```json
+{
+  "success": true,
+  "message": "Admin identity verified.",
+  "admin": {
+    "id": "64a1b2c3d4e5f6a7b8c9d0e1",
+    "email": "admin@example.com",
+    "role": "admin",
+    "createdAt": "2026-10-12T18:00:00.000Z"
+  }
+}
+```
+
+**Errors**: `401 UNAUTHORIZED` (no valid token), `403 FORBIDDEN` (valid token but not admin)
 
 ---
 

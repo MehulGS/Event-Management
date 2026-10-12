@@ -79,9 +79,10 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 | ESLint config (`eslint.config.mjs`) | ✅ Done | Fixed: upgraded `eslint-config-next` to 16.4.0 for ESLint 9 compatibility |
 | `next.config.ts` — Turbopack, caching | ✅ Done | Component caching + partial prefetching enabled |
 | `.env.example` with all required vars | ✅ Done | All variable names present, no values |
-| `src/types/index.ts` — shared TS interfaces | ⬜ TODO | `IEvent`, `IUser`, `IReminder`, `ICardDesign` |
-| `src/lib/auth.ts` — JWT sign/verify helpers | ⬜ TODO | `signToken()`, `verifyToken()` |
-| `src/lib/errors.ts` — typed API error helpers | ⬜ TODO | `ApiError` class, `handleApiError()` |
+| `src/types/index.ts` — shared TS interfaces | ✅ Done | `IEvent`, `IUser`, `IReminder`, `ICardDesign` — implemented in Phase 2 |
+| `src/lib/auth.ts` — JWT sign/verify helpers | ✅ Done | `signToken()`, `verifyToken()`, cookie helpers — implemented in Phase 3 |
+| `src/lib/csrf.ts` — Origin-based CSRF check | ✅ Done | `isSameOrigin()` — implemented in Phase 3 |
+| `src/lib/errors.ts` — typed API error helpers | ⬜ TODO | Folded into `api-response.ts`; a separate `errors.ts` is not required |
 | CSS custom properties in `globals.css` | ⬜ TODO | All tokens from `DESIGN-SYSTEM.md` |
 | Install `lucide-react` | ⬜ TODO | `npm install lucide-react` |
 | Install `framer-motion` | ⬜ TODO | `npm install framer-motion` |
@@ -99,13 +100,16 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: All Mongoose models exist with validation, indexes, and a seed script that creates the admin account and sample events.
 
+### Status: Implemented
+
 | Task | Status | Notes |
 |---|---|---|
-| `src/models/Event.ts` | ⬜ TODO | Schema per `DATABASE.md` |
-| `src/models/User.ts` | ⬜ TODO | Schema per `DATABASE.md` |
-| `src/models/Reminder.ts` | ⬜ TODO | Schema per `DATABASE.md` |
-| `src/models/CardDesign.ts` | ⬜ TODO | Schema per `DATABASE.md` |
-| `src/scripts/seed.ts` | ⬜ TODO | Creates admin from env vars + 10 sample events across all categories |
+| `src/models/Event.ts` | ✅ Done | Schema per `DATABASE.md` |
+| `src/models/User.ts` | ✅ Done | Schema per `DATABASE.md`; `passwordHash` excluded from toJSON |
+| `src/models/Reminder.ts` | ✅ Done | Schema per `DATABASE.md` |
+| `src/models/CardDesign.ts` | ✅ Done | Schema per `DATABASE.md` |
+| `scripts/seed-events.ts` | ✅ Done | 15 sample events across all categories |
+| `scripts/seed-admin.ts` | ✅ Done | Idempotent admin provisioning (`npm run seed-admin`) |
 
 **Acceptance criteria**:
 - All models import without TypeScript errors.
@@ -122,25 +126,29 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: Users can register, log in, and receive a JWT. Protected routes reject unauthenticated requests.
 
+### Status: Implemented — core auth and admin protection complete
+
 | Task | Status | Notes |
 |---|---|---|
-| `POST /api/auth/signup` | ⬜ TODO | Zod validation, hash password, create user |
-| `POST /api/auth/login` | ⬜ TODO | Compare hash, issue JWT, set HttpOnly cookie |
-| `POST /api/auth/logout` | ⬜ TODO | Clear cookie |
-| `src/middleware.ts` — Edge JWT check | ⬜ TODO | Protects `/admin/*`, `/feed`, `/reminders`, `/card-designer` |
-| Route handler `requireAuth` guard | ⬜ TODO | Helper used inside each protected route |
-| Route handler `requireAdmin` guard | ⬜ TODO | Extends `requireAuth`, checks `role === 'admin'` |
+| `src/lib/auth.ts` — JWT sign/verify + cookie helpers | ✅ Done | `signToken()`, `verifyToken()`, `getAuthFromRequest()`, `buildAuthCookie()`, `buildClearAuthCookie()`, `getCookieMaxAge()` |
+| `src/lib/csrf.ts` — Origin-based CSRF protection | ✅ Done | `isSameOrigin()` used on all state-changing endpoints |
+| `POST /api/auth/signup` | ✅ Done | Zod v4 validation, bcrypt hash, role="user" server-assigned, role injection blocked |
+| `POST /api/auth/login` | ✅ Done | Compare hash, issue JWT, set HttpOnly cookie |
+| `GET /api/auth/me` | ✅ Done | Requires valid cookie/Bearer; returns safe profile |
+| `POST /api/auth/logout` | ✅ Done | Clears cookie with Max-Age=0 |
+| `GET /api/admin/me` | ✅ Done | Test endpoint; re-reads role from DB; 401/403/200 |
+| `scripts/seed-admin.ts` — Admin provisioning | ✅ Done | `npm run seed-admin`; idempotent; refuses to silently promote normal user |
+| `src/middleware.ts` — Edge JWT check | ⬜ TODO | Planned for page route protection |
 | Login page UI | ⬜ TODO | `src/app/(auth)/login/page.tsx` |
 | Signup page UI | ⬜ TODO | `src/app/(auth)/signup/page.tsx` |
 
 **Acceptance criteria**:
-- Registering with an existing email returns `409 CONFLICT`.
-- Logging in with wrong password returns `401 UNAUTHORIZED`.
-- Logging in sets the `token` cookie.
-- Visiting `/admin` without a valid token redirects to `/login`.
-- A valid user token cannot access admin-only API routes (returns `403 FORBIDDEN`).
-
-**Dependencies**: Phase 2 complete.
+- ✅ Registering with an existing email returns `409 CONFLICT`.
+- ✅ Logging in with wrong password returns `401 UNAUTHORIZED`.
+- ✅ Logging in sets the `token` HttpOnly cookie.
+- ✅ A valid user token cannot access admin-only API routes (returns `403 FORBIDDEN`).
+- ✅ Role injection via signup body (`role: "admin"`) is blocked — account is created as `user`.
+- ⬜ Visiting `/admin` without a valid token redirects to `/login` (requires middleware, planned).
 
 ---
 
@@ -335,14 +343,20 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 Use this checklist during and after Phase 10.
 
 ### Authentication
-- [ ] Signup with valid data creates a user
-- [ ] Signup with existing email returns 409
-- [ ] Signup with short password returns 400
-- [ ] Login with correct credentials returns JWT cookie
-- [ ] Login with wrong password returns 401
-- [ ] Accessing `/admin` without token redirects to login
-- [ ] Accessing admin API with user token returns 403
-- [ ] Logout clears the cookie
+- [x] Signup with valid data creates a user (HTTP 201, role="user")
+- [x] Signup with existing email returns 409
+- [x] Signup with short password returns 400
+- [x] Signup with `role:"admin"` in body — account created as `user`, /admin/me returns 403
+- [x] Login with correct credentials returns JWT cookie (HTTP 200, Set-Cookie: token=...)
+- [x] Login with wrong password returns 401
+- [x] GET /api/auth/me without token returns 401
+- [x] GET /api/auth/me with valid cookie returns user profile (no passwordHash)
+- [x] GET /api/auth/me with invalid/expired JWT returns 401
+- [x] POST /api/auth/logout clears the cookie (Set-Cookie: token=; Max-Age=0)
+- [x] GET /api/admin/me without token returns 401
+- [x] GET /api/admin/me as normal user returns 403
+- [x] GET /api/admin/me as admin returns 200 with admin identity
+- [ ] Visiting `/admin` without token redirects to `/login` (middleware not yet implemented)
 
 ### Events (Admin)
 - [ ] Admin can create an event with all required fields

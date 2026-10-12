@@ -81,45 +81,35 @@ src/
 │   │       ├── new/page.tsx
 │   │       └── [id]/edit/page.tsx
 │   │
-│   └── api/                      # [Proposed] Route Handlers (REST API)
+│   └── api/                      # Route Handlers (REST API)
 │       ├── auth/
-│       │   ├── signup/route.ts
-│       │   └── login/route.ts
-│       ├── events/
-│       │   ├── route.ts          # GET (list), POST (admin create)
-│       │   └── [id]/
-│       │       └── route.ts      # GET, PATCH, DELETE
-│       ├── user/
+│       │   ├── signup/route.ts   # [Implemented] POST /api/auth/signup
+│       │   ├── login/route.ts    # [Implemented] POST /api/auth/login
+│       │   ├── me/route.ts       # [Implemented] GET /api/auth/me
+│       │   └── logout/route.ts   # [Implemented] POST /api/auth/logout
+│       ├── admin/
+│       │   └── me/route.ts       # [Implemented] GET /api/admin/me (admin test)
+│       ├── events/               # [Proposed]
+│       │   ├── route.ts
+│       │   └── [id]/route.ts
+│       ├── user/                 # [Proposed]
 │       │   ├── favourites/route.ts
 │       │   ├── feed/route.ts
 │       │   ├── reminders/route.ts
-│       │   └── reminders/[eventId]/route.ts
 │       │   └── card-design/route.ts
-│       └── health/route.ts
+│       └── health/route.ts       # [Implemented]
 │
 ├── components/
-│   ├── ui/                       # [Proposed] Primitive Claymorphism components
-│   │   ├── Button.tsx
-│   │   ├── Card.tsx
-│   │   ├── Input.tsx
-│   │   ├── Badge.tsx
-│   │   └── Dialog.tsx
-│   ├── events/                   # [Proposed] Event-specific components
-│   │   ├── EventCard.tsx
-│   │   ├── EventFilters.tsx
-│   │   └── EventGrid.tsx
-│   ├── layout/                   # [Proposed] Navigation and layout components
-│   │   ├── Navbar.tsx
-│   │   └── Footer.tsx
-│   └── card-designer/            # [Proposed] Card customisation UI
-│       └── CardDesigner.tsx
+│   └── ui/                       # [Proposed] Primitive Claymorphism components
 │
 ├── lib/
 │   ├── db.ts                     # [Implemented] Mongoose connection with global cache
-│   ├── auth.ts                   # [Proposed] JWT sign/verify helpers
-│   └── errors.ts                 # [Proposed] Typed error helpers
+│   ├── env.ts                    # [Implemented] Server env variable validation
+│   ├── api-response.ts           # [Implemented] Standardised response helpers
+│   ├── auth.ts                   # [Implemented] JWT sign/verify + cookie helpers
+│   └── csrf.ts                   # [Implemented] Same-origin CSRF check
 │
-├── models/                       # [Proposed] Mongoose model definitions
+├── models/                       # [Implemented]
 │   ├── Event.ts
 │   ├── User.ts
 │   ├── Reminder.ts
@@ -130,7 +120,7 @@ src/
 │   ├── authService.ts
 │   └── userService.ts
 │
-├── types/                        # [Proposed] Shared TypeScript interfaces
+├── types/                        # [Implemented] Shared TypeScript interfaces
 │   └── index.ts
 │
 └── middleware.ts                 # [Proposed] Edge middleware for route protection
@@ -212,24 +202,37 @@ Four collections are planned (see `DATABASE.md` for full schema):
 
 ## Authentication and Authorization Flow
 
-> **[Proposed]** — not yet implemented.
+> **[Implemented — Phase 3]** Authentication and JWT cookie handling are live. See `src/lib/auth.ts`, `src/lib/csrf.ts`, and `src/app/api/auth/`.
 
 ### Registration and Login
 
 1. User submits credentials to `POST /api/auth/signup` or `POST /api/auth/login`.
-2. Route handler validates the body with a Zod schema.
-3. `authService` hashes the password with `bcryptjs` (saltRounds = 12) or compares the hash on login.
-4. On success a signed JWT is returned. The payload contains `{ userId, role }` and a 7-day expiry.
-5. The token is set as an `HttpOnly`, `Secure`, `SameSite=Strict` cookie by the server response.
+2. Route handler validates the body with a Zod schema (Zod v4 — uses `.min(1)` instead of `required_error`).
+3. `src/lib/auth.ts` signs the JWT on login; `bcryptjs` hashes passwords (saltRounds = 12).
+4. On success a signed JWT is created. The payload contains `{ userId, role }` and a 7-day expiry.
+5. The token is set as an `HttpOnly`, `SameSite=Strict` cookie (also `Secure` in production).
+6. All state-changing auth endpoints also check the `Origin` header via `src/lib/csrf.ts` as a second CSRF layer.
+
+### Admin Provisioning
+
+The admin account is created by running `npm run seed-admin`. This script:
+- Reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from environment variables only.
+- Creates the admin account if it does not exist.
+- Updates the password hash if the password has changed.
+- Refuses to promote an existing normal user — requires manual intervention.
+- Is idempotent and safe to run repeatedly.
+
+**Never create an admin via the signup API** — the signup endpoint always assigns `role: "user"` server-side and ignores any `role` field in the request body.
 
 ### Protected Route Access
 
 ```
 Browser request with cookie
-  → Edge Middleware reads cookie
+  → (Future) Edge Middleware reads cookie
   → Verifies JWT signature and expiry
-  → Injects decoded payload into request headers (x-user-id, x-user-role)
-  → Route Handler reads headers, enforces role check
+  → Route Handler calls getAuthFromRequest() from src/lib/auth.ts
+  → Re-reads user role from database for admin checks
+  → Returns 401/403 if check fails
 ```
 
 ### Roles
@@ -246,7 +249,7 @@ The admin account is seeded at startup from `ADMIN_EMAIL` and `ADMIN_PASSWORD` e
 
 ## Request Validation and Error Handling
 
-> **[Proposed]**
+> **[Implemented — Phase 1 & 3]** `src/lib/api-response.ts` provides all response helpers. Zod v4 validation is in use on all auth routes.
 
 ### Validation
 
@@ -355,12 +358,13 @@ The following environment variables are required. Copy `.env.example` to `.env.l
 | Password storage | `bcryptjs` with saltRounds = 12; plain-text passwords never stored or logged |
 | JWT secret exposure | Stored only in env vars; never in source code |
 | Token transport | `HttpOnly` cookie prevents JavaScript access; `Secure` flag in production |
-| CSRF | `SameSite=Strict` cookie mitigates CSRF for same-origin API calls |
+| CSRF | `SameSite=Strict` cookie + explicit `Origin` header check in `src/lib/csrf.ts` for all state-changing auth endpoints |
 | Input injection | Zod validation on all API inputs; Mongoose parameterised queries prevent injection |
-| Admin route exposure | Both middleware redirect and per-route role check; defence in depth |
+| Role injection | `role` is never accepted from client; always assigned server-side as `"user"` on signup; admin assigned only via seed script |
+| Admin route exposure | Per-route role check using DB-sourced role (not token claim); future Edge middleware provides additional layer |
 | Sensitive env vars | `.env.local` and `.env` are git-ignored; `.env.example` contains no real values |
 | Rate limiting | Not yet planned; consider adding before production deployment |
-| HTTPS | Enforced by hosting platform (Vercel) in production |
+| HTTPS | Enforced by hosting platform (Vercel) in production; `Secure` cookie flag applied |
 
 ---
 
