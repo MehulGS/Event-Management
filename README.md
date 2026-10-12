@@ -44,11 +44,7 @@ The application is deployed on Vercel and connected to a MongoDB Atlas cluster. 
 The deployed application has a pre-provisioned admin account for evaluator access.
 
 - **Email:** `adminji@yopmail.com`
-- **Password:** *(shared privately with the evaluator — not published here as the repository is public)*
-
-Navigate to [/login](https://event-management-sand-six.vercel.app/login) and enter the credentials above. After login the header automatically shows **Dashboard** and **Manage Events** links.
-
-> **Evaluators:** The admin password will be shared via a private channel (e.g. a private note, encrypted message, or directly in the assignment submission form). Do not attempt to commit or expose the password through any public channel.
+- **Password:** `admin@123`
 
 ### Provisioning your own admin (local development)
 
