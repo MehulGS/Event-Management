@@ -67,14 +67,18 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: All tooling, environment config, and shared utilities are in place before any feature is built.
 
-### Status: Partially implemented
+### Status: Partially implemented — backend foundation complete
 
 | Task | Status | Notes |
 |---|---|---|
 | Next.js project scaffold | ✅ Done | `create-next-app` with TypeScript + Tailwind |
-| `src/lib/db.ts` — Mongoose connection | ✅ Done | Global cache, throws if URI missing |
+| `src/lib/db.ts` — Mongoose connection | ✅ Done | Global cache, lazy URI check, `bufferCommands: false`, typed return |
+| `src/lib/env.ts` — Server env validation | ✅ Done | `validateEnv()` and `getEnv()` helpers |
+| `src/lib/api-response.ts` — Response utilities | ✅ Done | `ok()`, `created()`, `errorResponse()`, typed error codes |
+| `GET /api/health` — Health endpoint | ✅ Done | DB ready-state check, 200/503, no secrets in response |
+| ESLint config (`eslint.config.mjs`) | ✅ Done | Fixed: upgraded `eslint-config-next` to 16.4.0 for ESLint 9 compatibility |
 | `next.config.ts` — Turbopack, caching | ✅ Done | Component caching + partial prefetching enabled |
-| `.env.example` with all required vars | ⬜ TODO | File exists but is empty — fill in variable names |
+| `.env.example` with all required vars | ✅ Done | All variable names present, no values |
 | `src/types/index.ts` — shared TS interfaces | ⬜ TODO | `IEvent`, `IUser`, `IReminder`, `ICardDesign` |
 | `src/lib/auth.ts` — JWT sign/verify helpers | ⬜ TODO | `signToken()`, `verifyToken()` |
 | `src/lib/errors.ts` — typed API error helpers | ⬜ TODO | `ApiError` class, `handleApiError()` |

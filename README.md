@@ -41,7 +41,7 @@ A responsive full-stack web application where administrators manage community ev
 | Claymorphism UI | ⬜ Planned |
 | Responsive layout (mobile and desktop) | ⬜ Planned |
 
-All features are planned. The current codebase contains the Next.js scaffold, Mongoose connection utility, and project documentation only.
+All features are planned except the backend foundation (MongoDB connection, `/api/health` endpoint, shared API utilities, and environment validation), which is implemented.
 
 ---
 
@@ -74,7 +74,7 @@ All features are planned. The current codebase contains the Next.js scaffold, Mo
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/MehulGS/Event-Management
 cd Event-Management
 
 # 2. Install dependencies
@@ -164,7 +164,7 @@ Quick reference:
 | Card design | `GET /api/user/card-design`, `PUT /api/user/card-design` |
 | Health | `GET /api/health` |
 
-> All endpoints are proposed. None are implemented yet.
+> All other endpoints are proposed. The health endpoint is implemented.
 
 ---
 
@@ -223,14 +223,15 @@ The usage log will be completed honestly at the end of development. All code gen
 
 ## Known Limitations and Remaining Work
 
-- **No features are implemented yet.** The codebase contains only the Next.js scaffold and the MongoDB connection utility.
+- **Features are not yet implemented.** The codebase contains the Next.js scaffold, MongoDB connection utility, shared API response helpers, environment validation, and the `/api/health` endpoint.
 - `lucide-react` and `framer-motion` have not been installed.
 - The seed script does not exist yet.
-- No API routes, models, UI components, or authentication logic have been built.
+- No user-facing API routes, models, UI components, or authentication logic have been built.
 - The admin account cannot be created until the seed script is implemented in Phase 2.
 - Image upload is not planned; `imageUrl` accepts an external URL only.
 - No rate limiting is currently planned.
 - Full WCAG compliance requires manual testing with assistive technologies beyond what is covered in this plan.
+- The MongoDB connection string in `.env` does not specify a database name, so Mongoose connects to the default `test` database. Update the URI to include the database name (e.g. `.../community-events-board?retryWrites=true&w=majority`) before populating data.
 
 ---
 

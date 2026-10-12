@@ -115,13 +115,18 @@ Common error codes:
 
 Returns the application and database status. No authentication required.
 
+> **[Implemented — Phase 1]** `src/app/api/health/route.ts`
+
 **Response 200**
 
 ```json
 {
-  "status": "ok",
-  "database": "connected",
-  "timestamp": "2026-10-12T10:00:00.000Z"
+  "success": true,
+  "message": "Service is healthy",
+  "database": {
+    "connected": true,
+    "name": "community_events_board"
+  }
 }
 ```
 
@@ -129,11 +134,14 @@ Returns the application and database status. No authentication required.
 
 ```json
 {
-  "status": "degraded",
-  "database": "disconnected",
-  "timestamp": "2026-10-12T10:00:00.000Z"
+  "error": {
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "Database is unavailable"
+  }
 }
 ```
+
+> **Note on response shape**: The health response uses the `success` / `message` / `database` envelope (consistent with the standardised `ok()` helper) rather than the `status` / `database` / `timestamp` shape shown in earlier drafts. The 503 path uses the standard error envelope from `src/lib/api-response.ts`.
 
 ---
 
