@@ -41,7 +41,7 @@ A responsive full-stack web application where administrators manage community ev
 | Claymorphism UI | ⬜ Planned |
 | Responsive layout (mobile and desktop) | ⬜ Planned |
 
-All features are planned except the backend foundation (MongoDB connection, `/api/health` endpoint, shared API utilities, and environment validation), which is implemented.
+**Phase 1 (Backend Foundation)** and **Phase 2 (Database Models and Seed Data)** are complete. All other features are planned.
 
 ---
 
@@ -129,9 +129,10 @@ npm run dev      # Start development server with Turbopack (http://localhost:300
 npm run build    # Production build
 npm run start    # Start the production server (requires a prior build)
 npm run lint     # Run ESLint
+npm run seed     # Seed 15 sample events into the database
 ```
 
-> Seed script command will be added in Phase 2: `npx ts-node src/scripts/seed.ts`
+> Seed command: `npm run seed` (uses `npx tsx scripts/seed-events.ts` internally). Requires `MONGODB_URI` to be set. Safe to re-run — uses upsert and does not create duplicates.
 
 ---
 
@@ -223,11 +224,11 @@ The usage log will be completed honestly at the end of development. All code gen
 
 ## Known Limitations and Remaining Work
 
-- **Features are not yet implemented.** The codebase contains the Next.js scaffold, MongoDB connection utility, shared API response helpers, environment validation, and the `/api/health` endpoint.
+- **Features are not yet implemented.** The codebase contains the Next.js scaffold, MongoDB connection utility, shared API response helpers, environment validation, the `/api/health` endpoint, all four Mongoose models (`Event`, `User`, `Reminder`, `CardDesign`), and 15 seeded sample events across all categories and multiple Indian cities.
 - `lucide-react` and `framer-motion` have not been installed.
 - The seed script does not exist yet.
-- No user-facing API routes, models, UI components, or authentication logic have been built.
-- The admin account cannot be created until the seed script is implemented in Phase 2.
+- No user-facing API routes, UI components, or authentication logic have been built.
+- The admin account cannot be created until the auth service is implemented in Phase 3.
 - Image upload is not planned; `imageUrl` accepts an external URL only.
 - No rate limiting is currently planned.
 - Full WCAG compliance requires manual testing with assistive technologies beyond what is covered in this plan.
