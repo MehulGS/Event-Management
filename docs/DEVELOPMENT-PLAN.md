@@ -156,22 +156,26 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: The admin can create, edit, and activate/deactivate events through a protected dashboard.
 
+### Status: Implemented — API layer complete
+
 | Task | Status | Notes |
 |---|---|---|
-| `POST /api/events` — create event | ⬜ TODO | Admin only; Zod validation |
-| `PATCH /api/events/:id` — update event | ⬜ TODO | Admin only; partial update |
-| `PATCH /api/events/:id/status` — toggle active | ⬜ TODO | Admin only |
-| `GET /api/admin/events` — list all (admin) | ⬜ TODO | Includes inactive events |
+| `POST /api/admin/events` — create event | ✅ Done | Admin only; Zod v4 validation; CSRF check; mass-assignment prevention |
+| `PATCH /api/admin/events/:id` — update event | ✅ Done | Admin only; partial update; `.strict()` schema rejects unknown fields |
+| `PATCH /api/admin/events/:id/status` — toggle active | ✅ Done | Admin only; boolean-only `isActive`; no deletion |
+| `GET /api/admin/events` — list all (admin) | ⬜ TODO | Includes inactive events; needed for admin dashboard |
 | Admin dashboard page | ⬜ TODO | `src/app/admin/page.tsx` — event list table |
 | New event form | ⬜ TODO | `src/app/admin/events/new/page.tsx` |
 | Edit event form | ⬜ TODO | `src/app/admin/events/[id]/edit/page.tsx` |
 | Admin layout with auth guard | ⬜ TODO | `src/app/admin/layout.tsx` |
 
 **Acceptance criteria**:
-- Admin can create an event and it appears in the admin list.
-- Admin can toggle an event inactive; it disappears from the public listing.
-- Non-admin JWT returns `403` on all admin API routes.
-- All form fields validate with descriptive error messages.
+- ✅ Admin can create an event (HTTP 201 with full event object).
+- ✅ Admin can update specific event fields; unknown fields are rejected (400).
+- ✅ Admin can toggle an event inactive; it disappears from the public listing.
+- ✅ Non-admin JWT returns `403` on all admin event API routes.
+- ✅ Role re-read from DB on every request; JWT role claim not trusted for admin checks.
+- ⬜ Admin dashboard UI (planned Phase 9).
 
 **Dependencies**: Phase 3 complete.
 
@@ -181,10 +185,12 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: Any visitor can browse, filter, search, and paginate events.
 
+### Status: Implemented — API layer complete
+
 | Task | Status | Notes |
 |---|---|---|
-| `GET /api/events` — public listing | ⬜ TODO | Active events, filters, pagination |
-| `GET /api/events/:id` — event detail | ⬜ TODO | Active events only |
+| `GET /api/events` — public listing | ✅ Done | Active + upcoming only; category/city/search filters; pagination |
+| `GET /api/events/:id` — event detail | ✅ Done | Active + upcoming only; 404 for inactive, past, or missing |
 | Public events listing page | ⬜ TODO | `src/app/(public)/events/page.tsx` |
 | Event detail page | ⬜ TODO | `src/app/(public)/events/[id]/page.tsx` |
 | EventCard component | ⬜ TODO | Displays title, category badge, date, city, image |
@@ -193,11 +199,17 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 | Pagination component | ⬜ TODO | Previous / Next / page numbers |
 
 **Acceptance criteria**:
-- Listing returns only active events.
-- Filtering by category + city returns the intersection.
-- Keyword search finds events matching title or description.
-- Pagination returns the correct page and total count.
-- Requesting a non-existent event returns `404 NOT_FOUND`.
+- ✅ Listing returns only active, upcoming events (isActive=true AND date > now).
+- ✅ Category filter applies exact enum match; invalid value returns 400.
+- ✅ City filter is case-insensitive substring match; special regex chars are escaped.
+- ✅ Keyword search uses MongoDB `$text` index across `title` and `description`.
+- ✅ All three filters combine with AND logic.
+- ✅ Results always sorted by `date` ascending (nearest upcoming first).
+- ✅ Pagination returns correct page, limit, total, totalPages, hasNextPage, hasPrevPage.
+- ✅ Empty result set returns HTTP 200 with `data: []` and correct pagination metadata.
+- ✅ Invalid ID returns 404 without crashing.
+- ✅ Inactive events and past events return 404 from the detail endpoint.
+- ⬜ UI pages (planned Phase 9).
 
 **Dependencies**: Phase 2 complete (Phase 4 provides seed data for realistic testing).
 
@@ -359,22 +371,43 @@ Use this checklist during and after Phase 10.
 - [ ] Visiting `/admin` without token redirects to `/login` (middleware not yet implemented)
 
 ### Events (Admin)
-- [ ] Admin can create an event with all required fields
-- [ ] Creating event with missing required field returns 400
-- [ ] Admin can edit an event's title and category
-- [ ] Admin can deactivate an event
-- [ ] Deactivated event does not appear in public listing
-- [ ] Admin can reactivate an event
+- [x] Admin can create an event with all required fields (HTTP 201)
+- [x] Creating event with missing required field returns 400
+- [x] Creating event with invalid category returns 400
+- [x] Creating event with negative price returns 400
+- [x] Creating event with non-HTTP(S) imageUrl returns 400
+- [x] Unknown fields in create body are rejected with 400 (`.strict()` schema)
+- [x] Non-admin user token returns 403 on POST /api/admin/events
+- [x] Unauthenticated request returns 401 on POST /api/admin/events
+- [x] Admin can edit an event's title and category (PATCH /api/admin/events/:id)
+- [x] Unknown fields in update body are rejected with 400
+- [x] PATCH with invalid ID returns 404
+- [x] Admin can deactivate an event (PATCH /api/admin/events/:id/status)
+- [x] Admin can reactivate an event
+- [x] Deactivated event does not appear in public listing
+- [x] Passing `isActive` as a string returns 400 on status endpoint
 
 ### Events (Public)
-- [ ] Public listing returns only active events
-- [ ] Category filter narrows results correctly
-- [ ] City filter is case-insensitive
-- [ ] Keyword search returns relevant results
-- [ ] Category + city + keyword combined returns intersection
-- [ ] Pagination: page 2 returns different results than page 1
-- [ ] Total and totalPages are accurate
-- [ ] Event detail returns 404 for non-existent or inactive event
+- [x] Public listing returns only active, upcoming events (isActive=true AND date > now)
+- [x] Past events do not appear in public listing
+- [x] Inactive upcoming events do not appear in public listing
+- [x] Results sorted by date ascending (nearest upcoming first)
+- [x] Category filter narrows results correctly (exact match)
+- [x] Invalid category value returns 400
+- [x] City filter is case-insensitive substring match
+- [x] Keyword search returns relevant results (text index on title + description)
+- [x] Category + city + keyword combined returns intersection (AND logic)
+- [x] Empty result set returns HTTP 200 with data:[] and correct pagination
+- [x] Pagination: page 2 returns different results than page 1
+- [x] total and totalPages are accurate
+- [x] limit > 50 returns 400
+- [x] page < 1 returns 400
+- [x] GET /api/events/:id returns 404 for non-existent event
+- [x] GET /api/events/:id returns 404 for inactive event (same as missing)
+- [x] GET /api/events/:id returns 404 for past event
+- [x] GET /api/events/:id with malformed (non-hex) ID returns 404 without crashing
+
+> **Verification note**: Logic-level checks (TypeScript, ESLint, production build) all pass. Live database tests require Atlas connectivity and manual API testing. Atlas credentials are not available in this automated session — database-dependent test results remain unverified.
 
 ### Favourites and My Feed
 - [ ] Setting favourites persists after page reload

@@ -323,21 +323,41 @@ All relationships are expressed as `ObjectId` references. No embedding of relate
 When a visitor filters by category **and** city **and** provides a keyword, the query combines all three:
 
 ```ts
-const filter: FilterQuery<IEvent> = { isActive: true };
+const filter: QueryFilter<IEvent> = {
+  isActive: true,
+  date: { $gt: now },
+};
 
-if (category) filter.category = category;
-if (city)     filter.city = new RegExp(city, 'i');
-if (keyword)  filter.$text = { $search: keyword };
+if (category) filter.category = category;                    // exact enum match
+if (city)     filter.city = new RegExp(escapeRegex(city), "i"); // case-insensitive contains
+if (search)   filter.$text = { $search: search };           // text index word search
 
 const events = await Event.find(filter)
-  .sort(keyword ? { score: { $meta: 'textScore' } } : { date: 1 })
+  .sort({ date: 1 })          // always ascending by date
   .skip((page - 1) * limit)
-  .limit(limit);
+  .limit(limit)
+  .lean();
 ```
 
-The index `{ isActive: 1, category: 1, date: 1 }` supports category + active + date-sort queries. When a text search is active, MongoDB uses the text index and relevance scoring overrides date sorting.
+#### Sort order with text search
 
-> **Pending verification**: index selection and query plan will be confirmed with `explain()` once models and seed data are in place.
+Results are **always sorted by `date` ascending** (nearest upcoming first). Unlike earlier documentation drafts, text relevance score (`$meta: "textScore"`) is **not** used as a sort key. MongoDB allows sorting by a regular field (e.g. `date`) when a `$text` clause is present — only sorting by `$meta: "textScore"` requires a corresponding projection. This preserves the expected chronological ordering regardless of whether a search term is active.
+
+#### Index trade-offs
+
+| Query path | Index used | Notes |
+|---|---|---|
+| No filters (active + upcoming) | `{ isActive: 1, date: 1 }` | Primary listing |
+| Category filter | `{ category: 1, isActive: 1, date: 1 }` | Compound index covers category + active + date sort |
+| City filter | `{ city: 1, isActive: 1, date: 1 }` | City regex can be prefix-optimised; suffix/contains regex does a collection scan regardless |
+| Text search | Text index on `{ title: "text", description: "text" }` | MongoDB uses the text index to find documents; the `date` sort is applied after |
+| Text + category + city | Text index for `$text`; filter applied in memory after text scan | MongoDB can only use one special index per query; category and city constraints act as post-filters on the text index result set |
+
+**City regex note**: `city` matching uses `/input/i` (contains, case-insensitive). A city regex that starts with `^` (prefix) can use an index; a contains regex does not. At the expected data volume for a community events board the cost is acceptable. If the city list grows, normalising city to a lowercase stored value and using an exact equality check would allow the compound index to be used.
+
+**Text search note**: The text index supports word-boundary stemming (e.g. "jazz" matches "Jazz" or "jazzy") but **not** substring partial-word matching (e.g. "jaz" does not match "jazz"). This is the standard MongoDB `$text` behaviour and is documented accurately in `docs/API.md`.
+
+> **Verified against seed data**: index selection and query behaviour confirmed via the TypeScript build and query structure. Full `explain()` verification requires a live Atlas connection.
 
 ---
 

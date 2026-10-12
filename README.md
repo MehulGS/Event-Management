@@ -29,9 +29,9 @@ A responsive full-stack web application where administrators manage community ev
 
 | Feature | Status |
 |---|---|
-| Public event listing with category, city, and keyword filters | ⬜ Planned |
-| Pagination | ⬜ Planned |
-| Event detail view | ⬜ Planned |
+| Public event listing with category, city, and keyword filters | ✅ Implemented |
+| Pagination | ✅ Implemented |
+| Event detail view (API) | ✅ Implemented |
 | User registration (`POST /api/auth/signup`) | ✅ Implemented |
 | User login (`POST /api/auth/login`) | ✅ Implemented |
 | JWT HTTP-only cookie auth | ✅ Implemented |
@@ -39,7 +39,9 @@ A responsive full-stack web application where administrators manage community ev
 | Logout (`POST /api/auth/logout`) | ✅ Implemented |
 | Admin provisioning (`npm run seed-admin`) | ✅ Implemented |
 | Admin identity test (`GET /api/admin/me`) | ✅ Implemented |
-| Admin event creation, editing, and activation/deactivation | ⬜ Planned |
+| Admin event creation (`POST /api/admin/events`) | ✅ Implemented |
+| Admin event editing (`PATCH /api/admin/events/:id`) | ✅ Implemented |
+| Admin event activation/deactivation (`PATCH /api/admin/events/:id/status`) | ✅ Implemented |
 | Favourite category selection | ⬜ Planned |
 | Personalised My Feed | ⬜ Planned |
 | Persistent reminders (database-backed) | ⬜ Planned |
@@ -47,7 +49,7 @@ A responsive full-stack web application where administrators manage community ev
 | Claymorphism UI | ⬜ Planned |
 | Responsive layout (mobile and desktop) | ⬜ Planned |
 
-**Phase 1 (Backend Foundation)**, **Phase 2 (Database Models and Seed Data)**, and **Phase 3 (Authentication and Authorization APIs)** are complete. All other features are planned.
+**Phases 1–5 (Backend Foundation through Public Event Discovery)** are complete. All other features are planned.
 
 ---
 
@@ -188,8 +190,11 @@ Quick reference:
 | Auth | `GET /api/auth/me` | ✅ Live |
 | Auth | `POST /api/auth/logout` | ✅ Live |
 | Admin test | `GET /api/admin/me` | ✅ Live |
-| Public events | `GET /api/events`, `GET /api/events/:id` | ⬜ Planned |
-| Admin events | `POST /api/events`, `PATCH /api/events/:id` | ⬜ Planned |
+| Public events | `GET /api/events` | ✅ Live |
+| Public events | `GET /api/events/:id` | ✅ Live |
+| Admin events | `POST /api/admin/events` | ✅ Live |
+| Admin events | `PATCH /api/admin/events/:id` | ✅ Live |
+| Admin events | `PATCH /api/admin/events/:id/status` | ✅ Live |
 | Favourites | `GET/PUT /api/user/favourites` | ⬜ Planned |
 | My Feed | `GET /api/user/feed` | ⬜ Planned |
 | Reminders | `GET/POST/DELETE /api/user/reminders` | ⬜ Planned |
@@ -253,7 +258,22 @@ The application uses four MongoDB collections: `events`, `users`, `reminders`, a
 
 ### 2. How does the combined filter query work, and which index supports it?
 
-The public event listing filters by `{ isActive: true }` first, then optionally by `category` (exact enum match), `city` (case-insensitive regex), and `search` (MongoDB `$text` query against a text index on `title` and `description`). The compound index `{ isActive: 1, category: 1, date: 1 }` supports the most common filter path. When a text search is active, the text index is used and results are sorted by relevance score rather than date. Pending verification with `explain()` once models and seed data exist.
+The public event listing (`GET /api/events`) builds a MongoDB filter with AND logic:
+
+1. **Base filter** — always applied: `{ isActive: true, date: { $gt: now } }`. This ensures only active, upcoming events are returned.
+2. **`category`** — exact case-sensitive enum match added when supplied. Unsupported values are rejected by Zod before reaching the database.
+3. **`city`** — case-insensitive substring regex (`/escaped_input/i`) added when supplied. User input is escaped with a regex escaping function before being passed to `RegExp` to prevent regex injection.
+4. **`search`** — MongoDB `$text` query operator added when supplied. Matches whole-word stems across the `title` and `description` text index. Partial-word substring matching (e.g. "jaz" matching "jazz") is **not** supported — this is standard `$text` behaviour, documented in `docs/API.md`.
+
+**Sort order**: Results are always sorted by `date` ascending (nearest upcoming first). Text relevance score is **not** used as a sort key, preserving chronological order even when a search term is provided.
+
+**Index usage**:
+- No filters → `{ isActive: 1, date: 1 }` compound index.
+- With `category` → `{ category: 1, isActive: 1, date: 1 }` compound index.
+- With `city` → `{ city: 1, isActive: 1, date: 1 }` compound index (prefix anchoring not used; contains regex does not use index range scan, but the index still narrows the dataset when combined with equality conditions).
+- With `search` → text index on `{ title: "text", description: "text" }`. Category and city post-filters apply after the text scan.
+
+When all three filters are combined, MongoDB uses the text index for the `$text` clause and applies `isActive`, `date`, `category`, and `city` as residual filters. Full index selection details will be confirmed with `explain()` once live Atlas connectivity is available.
 
 ### 3. How are passwords stored, and how are the admin page and API protected?
 
@@ -277,13 +297,15 @@ The usage log will be completed honestly at the end of development. All code gen
 
 ## Known Limitations and Remaining Work
 
-- **Event management, user features, and UI are not yet implemented.** Phases 4–9 remain planned.
+- **User features and UI are not yet implemented.** Phases 6–9 remain planned.
 - `lucide-react` and `framer-motion` have not been installed (needed for Phase 9 UI).
 - Next.js Edge Middleware (`src/middleware.ts`) for page-level route protection is not yet implemented.
+- `GET /api/admin/events` (admin event listing with inactive events) is planned but not yet implemented.
 - JWTs are stateless; there is no server-side revocation mechanism. If token revocation before expiry is required, a deny-list (e.g. Redis) would need to be added.
 - No rate limiting is currently planned; add before production deployment.
 - The MongoDB connection string in `.env` does not specify a database name, causing Mongoose to use the default `test` database. Update the URI to include the database name before production (e.g. `.../community-events-board?retryWrites=true&w=majority`).
 - Image upload is not planned; `imageUrl` accepts an external URL only.
+- City filter uses a contains regex (`/city/i`) which does not use a database index range scan. Acceptable at this scale; for larger datasets, consider normalising city to a stored-lowercase field and using an exact equality match.
 - Full WCAG compliance requires manual testing with assistive technologies.
 
 ---

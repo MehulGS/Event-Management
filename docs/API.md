@@ -1,6 +1,6 @@
 # API Reference — Community Events Board
 
-> **Status**: Partially implemented. Authentication endpoints (Phase 3) are live and tested. Event management, user features, and admin dashboard APIs remain planned (Phases 4–8).
+> **Status**: Phases 3–5 implemented. Authentication (Phase 3) and event management + public discovery (Phases 4–5) are live. User features (Phases 6–8) remain planned.
 
 ---
 
@@ -288,81 +288,105 @@ Clears the JWT cookie. No authentication required (logout always succeeds).
 
 ## Event Endpoints (Public)
 
+> **[Implemented — Phase 5]** Both public event endpoints are live. See `src/app/api/events/`.
+
 ### `GET /api/events`
 
-Returns a paginated list of **active** events. Supports filtering, sorting, and keyword search.
+Returns a paginated list of **active, upcoming** events. Supports optional filtering by category, city, and keyword search.
+
+Only events where `isActive: true` **and** `date > now` (server time) are returned. Inactive and past events are never exposed through this endpoint.
 
 **Query parameters**
 
-| Parameter | Type | Description |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `page` | integer ≥ 1 | `1` | Page number |
+| `limit` | integer 1–50 | `12` | Results per page (max 50) |
+| `category` | string | — | Exact enum match: `Music`, `Workshop`, `Food`, `Sports`, `Kids` |
+| `city` | string (≤ 100 chars) | — | Case-insensitive **contains** regex match against the `city` field |
+| `search` | string (≤ 200 chars) | — | MongoDB text index search across `title` and `description` |
+
+#### Filter Semantics
+
+All supplied filters are combined with **AND** logic:
+
+| Filter | Matching rule | Notes |
 |---|---|---|
-| `page` | integer | Page number (default: 1) |
-| `limit` | integer | Results per page (default: 12, max: 50) |
-| `category` | string | Filter by category: `Music`, `Workshop`, `Food`, `Sports`, `Kids` |
-| `city` | string | Case-insensitive partial match on city name |
-| `search` | string | Full-text search across title and description |
-| `sort` | string | `date_asc` (default), `date_desc` |
+| `category` | Exact case-sensitive enum match | Invalid values return `400 VALIDATION_ERROR` |
+| `city` | Case-insensitive substring (`/city/i`) | Special regex characters are escaped before use; input is capped at 100 chars |
+| `search` | MongoDB `$text` query on `title` + `description` | Word-boundary matching via the text index (no partial-word/substring matching) |
 
-#### Combined Filter Behaviour
+#### Sort order
 
-Filters are additive (AND logic):
-- `category` applies an exact enum match.
-- `city` applies a case-insensitive regex match.
-- `search` activates the MongoDB text index; when combined with other filters, `{ isActive: true }` and category/city constraints are applied alongside `$text`.
-- When `search` is active, results are sorted by text relevance score instead of date. Explicit `sort` is ignored when `search` is provided.
+Results are **always sorted by `date` ascending** (nearest upcoming event first), even when `search` is provided. Text relevance score is never used as a sort key.
+
+#### Example combined query
+
+```
+GET /api/events?category=Music&city=Coimbatore&search=jazz&page=1&limit=6
+```
+
+All three filters apply simultaneously (AND logic): active upcoming Music events in Coimbatore whose title or description contains the word "jazz".
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "data": [
     {
       "id": "64a1b2c3d4e5f6a7b8c9d0e1",
-      "title": "Summer Jazz Night",
-      "description": "An evening of live jazz in the park.",
+      "title": "Coimbatore Jazz Evening",
+      "description": "A relaxed evening of live jazz...",
       "category": "Music",
-      "city": "Dublin",
-      "venue": "St. Stephen's Green",
-      "date": "2026-11-15T19:00:00.000Z",
-      "imageUrl": "https://example.com/images/jazz.jpg",
+      "city": "Coimbatore",
+      "date": "2026-11-15T12:30:00.000Z",
+      "price": 299,
+      "imageUrl": "https://images.unsplash.com/...",
       "isActive": true,
-      "createdAt": "2026-10-01T10:00:00.000Z"
+      "createdAt": "2026-10-01T10:00:00.000Z",
+      "updatedAt": "2026-10-01T10:00:00.000Z"
     }
   ],
   "pagination": {
     "page": 1,
     "limit": 12,
-    "total": 47,
-    "totalPages": 4,
-    "hasNextPage": true,
+    "total": 1,
+    "totalPages": 1,
+    "hasNextPage": false,
     "hasPrevPage": false
   }
 }
 ```
 
-**Errors**: `400 VALIDATION_ERROR` (invalid query params)
+An empty result set (no matching events) returns HTTP 200 with `data: []` and correct pagination metadata.
+
+**Errors**: `400 VALIDATION_ERROR` (invalid `category`, `page` out of range, `limit` out of range, `city` or `search` too long)
 
 ---
 
 ### `GET /api/events/:id`
 
-Returns the full detail of a single **active** event.
+Returns the full detail of a single **active, upcoming** event.
 
-**Path parameter**: `id` — MongoDB ObjectId of the event.
+Inactive events and past events return `404 NOT_FOUND` — identical to a non-existent event. This prevents callers from probing for hidden or expired events.
+
+**Path parameter**: `id` — 24-character hex MongoDB ObjectId.
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "data": {
     "id": "64a1b2c3d4e5f6a7b8c9d0e1",
-    "title": "Summer Jazz Night",
-    "description": "An evening of live jazz in the park.",
+    "title": "Coimbatore Jazz Evening",
+    "description": "A relaxed evening of live jazz...",
     "category": "Music",
-    "city": "Dublin",
-    "venue": "St. Stephen's Green",
-    "date": "2026-11-15T19:00:00.000Z",
-    "imageUrl": "https://example.com/images/jazz.jpg",
+    "city": "Coimbatore",
+    "date": "2026-11-15T12:30:00.000Z",
+    "price": 299,
+    "imageUrl": "https://images.unsplash.com/...",
     "isActive": true,
     "createdAt": "2026-10-01T10:00:00.000Z",
     "updatedAt": "2026-10-01T10:00:00.000Z"
@@ -370,15 +394,19 @@ Returns the full detail of a single **active** event.
 }
 ```
 
-**Errors**: `404 NOT_FOUND`
+**Errors**: `404 NOT_FOUND` (missing, inactive, past, or malformed ID)
 
 ---
 
 ## Event Endpoints (Admin)
 
-### `POST /api/events`
+> **[Implemented — Phase 4]** All admin event endpoints are live. See `src/app/api/admin/events/`.
+>
+> **Base path for admin event endpoints**: `/api/admin/events` (not `/api/events`).
 
-🛡️ Creates a new event.
+### `POST /api/admin/events`
+
+🛡️ Creates a new event. Requires admin JWT and same-origin CSRF check.
 
 **Request body**
 
@@ -387,9 +415,9 @@ Returns the full detail of a single **active** event.
   "title": "Summer Jazz Night",
   "description": "An evening of live jazz in the park.",
   "category": "Music",
-  "city": "Dublin",
-  "venue": "St. Stephen's Green",
-  "date": "2026-11-15T19:00:00.000Z",
+  "city": "Coimbatore",
+  "date": "2026-11-15T12:30:00.000Z",
+  "price": 299,
   "imageUrl": "https://example.com/images/jazz.jpg",
   "isActive": true
 }
@@ -397,21 +425,35 @@ Returns the full detail of a single **active** event.
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
-| `title` | string | ✅ | 3–120 chars |
-| `description` | string | ✅ | Max 2000 chars |
-| `category` | string | ✅ | One of the five defined categories |
-| `city` | string | ✅ | Max 100 chars |
-| `venue` | string | ✅ | Max 200 chars |
-| `date` | ISO date string | ✅ | Must be a valid date |
-| `imageUrl` | string | ❌ | Valid URL or omitted |
+| `title` | string | ✅ | 3–120 chars (trimmed) |
+| `description` | string | ✅ | 1–2000 chars (trimmed) |
+| `category` | string | ✅ | One of: `Music`, `Workshop`, `Food`, `Sports`, `Kids` |
+| `city` | string | ✅ | 1–100 chars (trimmed) |
+| `date` | ISO date string | ✅ | Valid ISO 8601 date string |
+| `price` | number | ✅ | ≥ 0 (INR; 0 = free) |
+| `imageUrl` | string | ✅ | Valid HTTP or HTTPS URL |
 | `isActive` | boolean | ❌ | Defaults to `true` |
+
+Client-supplied `_id`, `createdBy`, or any unknown field is rejected (`.strict()` schema).
 
 **Response 201**
 
 ```json
 {
+  "success": true,
   "message": "Event created.",
-  "data": { /* full event object */ }
+  "data": {
+    "id": "64a1b2c3d4e5f6a7b8c9d0e1",
+    "title": "Summer Jazz Night",
+    "category": "Music",
+    "city": "Coimbatore",
+    "date": "2026-11-15T12:30:00.000Z",
+    "price": 299,
+    "imageUrl": "https://example.com/images/jazz.jpg",
+    "isActive": true,
+    "createdAt": "2026-10-13T10:00:00.000Z",
+    "updatedAt": "2026-10-13T10:00:00.000Z"
+  }
 }
 ```
 
@@ -419,18 +461,21 @@ Returns the full detail of a single **active** event.
 
 ---
 
-### `PATCH /api/events/:id`
+### `PATCH /api/admin/events/:id`
 
-🛡️ Updates one or more fields of an existing event.
+🛡️ Updates one or more fields of an existing event (partial update).
 
-**Request body**: any subset of the fields accepted by `POST /api/events`.
+Only the following fields may be updated: `title`, `description`, `category`, `city`, `date`, `price`, `imageUrl`, `isActive`. Unknown fields are rejected with `400`.
+
+**Request body**: any subset of the fields above.
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "message": "Event updated.",
-  "data": { /* updated event object */ }
+  "data": { "id": "...", "title": "...", /* full event object */ }
 }
 ```
 
@@ -438,9 +483,9 @@ Returns the full detail of a single **active** event.
 
 ---
 
-### `PATCH /api/events/:id/status`
+### `PATCH /api/admin/events/:id/status`
 
-🛡️ Toggles the active/inactive status of an event.
+🛡️ Activates or deactivates an event. Events are **never deleted** — deactivation hides them from public APIs.
 
 **Request body**
 
@@ -448,10 +493,13 @@ Returns the full detail of a single **active** event.
 { "isActive": false }
 ```
 
+The `isActive` field is **required** and must be a boolean. Strings (`"false"`), numbers, and null are rejected.
+
 **Response 200**
 
 ```json
 {
+  "success": true,
   "message": "Event deactivated.",
   "data": { "id": "...", "isActive": false }
 }
@@ -461,31 +509,17 @@ Returns the full detail of a single **active** event.
 
 ---
 
-### `DELETE /api/events/:id`
+### `GET /api/admin/events`
 
-🛡️ Permanently deletes an event.
+🛡️ Returns all events (active and inactive) for the admin dashboard.
 
-> Consider making this a soft delete (set `isActive: false`) instead. Permanent deletion will also orphan associated reminders. Decision pending.
-
-**Response 200**
-
-```json
-{ "message": "Event deleted." }
-```
-
-**Errors**: `401`, `403`, `404`
+> **[Planned — Phase 4]** This listing endpoint is not yet implemented. Admin event creation, update, and status change are implemented.
 
 ---
 
-### `GET /api/admin/events`
+### `DELETE /api/events/:id`
 
-🛡️ Returns all events (both active and inactive) for the admin dashboard. Supports the same filter and pagination parameters as the public listing, plus:
-
-| Parameter | Type | Description |
-|---|---|---|
-| `status` | string | `active`, `inactive`, or omitted for all |
-
-**Response 200**: same pagination envelope as the public listing.
+> **Not implemented.** The assignment requires deactivation (soft delete) instead of permanent deletion. Use `PATCH /api/admin/events/:id/status` with `{ "isActive": false }` instead.
 
 ---
 
