@@ -6,22 +6,46 @@ A responsive full-stack web application where administrators manage community ev
 
 ## Table of Contents
 
-1. [Feature Scope](#feature-scope)
-2. [Technology Stack](#technology-stack)
-3. [Prerequisites](#prerequisites)
-4. [Local Setup](#local-setup)
-5. [Environment Variables](#environment-variables)
-6. [MongoDB Atlas Setup](#mongodb-atlas-setup)
-7. [Development Commands](#development-commands)
-8. [Admin Login Configuration](#admin-login-configuration)
-9. [API Documentation](#api-documentation)
-10. [Database Design](#database-design)
-11. [Security Notes](#security-notes)
-12. [Testing Instructions](#testing-instructions)
-13. [Assignment Questions](#assignment-questions)
-14. [AI Usage Disclosure](#ai-usage-disclosure)
-15. [Known Limitations and Remaining Work](#known-limitations-and-remaining-work)
-16. [Assignment Submission Checklist](#assignment-submission-checklist)
+1. [Live Demo](#live-demo)
+2. [Admin Login](#admin-login)
+3. [Feature Scope](#feature-scope)
+4. [Technology Stack](#technology-stack)
+5. [Prerequisites](#prerequisites)
+6. [Local Setup](#local-setup)
+7. [Environment Variables](#environment-variables)
+8. [MongoDB Atlas Setup](#mongodb-atlas-setup)
+9. [Development Commands](#development-commands)
+10. [Admin Provisioning](#admin-provisioning)
+11. [API Documentation](#api-documentation)
+12. [Database Design](#database-design)
+13. [Security Notes](#security-notes)
+14. [Testing Instructions](#testing-instructions)
+15. [Assignment Questions](#assignment-questions)
+16. [AI Usage Disclosure](#ai-usage-disclosure)
+17. [Known Limitations and Remaining Work](#known-limitations-and-remaining-work)
+18. [Assignment Submission Checklist](#assignment-submission-checklist)
+
+---
+
+## Live Demo
+
+> **Deployment pending.** The live URL will be updated here once the application is deployed to Vercel.
+>
+> Placeholder: `https://community-events-board.vercel.app` *(not yet active)*
+
+---
+
+## Admin Login
+
+The admin account is provisioned via `npm run seed-admin` using environment variables — see [Admin Provisioning](#admin-provisioning).
+
+**How to share credentials with an evaluator:**
+- Do **not** commit credentials to the repository.
+- Share the `ADMIN_EMAIL` and `ADMIN_PASSWORD` values securely (e.g. via an encrypted message, a private shared document, or Vercel environment variable access).
+- The evaluator runs `npm run seed-admin` locally with those values to provision the admin account.
+
+Once provisioned, log in at: `POST /api/auth/login` with the configured credentials.
+The admin dashboard UI is planned for a future phase — admin API endpoints are live and testable via any HTTP client.
 
 ---
 
@@ -42,14 +66,24 @@ A responsive full-stack web application where administrators manage community ev
 | Admin event creation (`POST /api/admin/events`) | ✅ Implemented |
 | Admin event editing (`PATCH /api/admin/events/:id`) | ✅ Implemented |
 | Admin event activation/deactivation (`PATCH /api/admin/events/:id/status`) | ✅ Implemented |
-| Favourite category selection | ✅ Implemented |
-| Personalised My Feed | ✅ Implemented |
-| Persistent reminders (database-backed) | ✅ Implemented |
-| Persistent card designer (database-backed) | ✅ Implemented |
-| Claymorphism UI | ⬜ Planned |
-| Responsive layout (mobile and desktop) | ⬜ Planned |
+| Favourite category selection (API) | ✅ Implemented |
+| Personalised My Feed (API) | ✅ Implemented |
+| Persistent reminders — database-backed (API) | ✅ Implemented |
+| Persistent card designer — database-backed (API) | ✅ Implemented |
+| Claymorphism design system (tokens, shared components) | ✅ Implemented |
+| Landing page (`/`) with featured events | ✅ Implemented |
+| Public events page (`/events`) with filters and pagination | ✅ Implemented |
+| Responsive layout (mobile and desktop) | ✅ Implemented |
+| Login page UI | ⬜ Planned |
+| Signup page UI | ⬜ Planned |
+| Admin dashboard UI | ⬜ Planned |
+| My Feed page UI | ⬜ Planned |
+| Reminders page UI | ⬜ Planned |
+| Card designer UI | ⬜ Planned |
 
-**Phases 1–8 (Backend Foundation through Personalization APIs)** are complete. Frontend UI (Phase 9) and remaining features are planned.
+**Phases 1–9a (Backend + Design System + Landing + Events pages)** are complete. Remaining UI phases are planned.
+
+> **Event seeding note:** The sample-event seed script (`scripts/seed-events.ts`) has been removed. The public events listing will be empty until an administrator creates events via the API (`POST /api/admin/events`) or the database is populated through an explicitly documented process. No actual event documents in MongoDB are affected — only the script file and its npm command have been removed.
 
 ---
 
@@ -57,14 +91,14 @@ A responsive full-stack web application where administrators manage community ev
 
 - **Framework**: Next.js 16.4 with App Router
 - **Language**: TypeScript 5
-- **Styling**: Tailwind CSS v4
+- **Styling**: Tailwind CSS v4 + CSS custom properties (Claymorphism tokens)
 - **Database**: MongoDB Atlas (cloud-hosted)
 - **ODM**: Mongoose 9
 - **Authentication**: JSON Web Tokens (`jsonwebtoken`)
 - **Password hashing**: `bcryptjs`
 - **Validation**: Zod
-- **Icons**: Lucide React *(to be installed)*
-- **Animations**: Framer Motion *(to be installed)*
+- **Icons**: Lucide React
+- **Animations**: Framer Motion *(installed, available for future phases)*
 - **Build tool**: Turbopack (via Next.js)
 
 ---
@@ -93,11 +127,16 @@ cp .env.example .env.local
 
 # 4. Fill in the required values in .env.local (see Environment Variables below)
 
-# 5. Start the development server
+# 5. Provision the admin account
+npm run seed-admin
+
+# 6. Start the development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+The public events listing will be empty until events are created via `POST /api/admin/events` using the provisioned admin account.
 
 ---
 
@@ -107,14 +146,14 @@ Copy `.env.example` to `.env.local` and provide values for each variable. **Neve
 
 | Variable | Required | Description |
 |---|---|---|
-| `MONGODB_URI` | ✅ | MongoDB Atlas connection string |
-| `JWT_SECRET` | ✅ | Long random string used to sign JWTs |
+| `MONGODB_URI` | ✅ | MongoDB Atlas connection string (include database name) |
+| `JWT_SECRET` | ✅ | Long random string used to sign JWTs (32+ chars) |
 | `JWT_EXPIRES_IN` | ✅ | Token lifespan, e.g. `7d` |
 | `ADMIN_EMAIL` | ✅ | Email address of the seeded admin account |
 | `ADMIN_PASSWORD` | ✅ | Password for the seeded admin account |
-| `NEXT_PUBLIC_APP_URL` | ✅ | Base URL of the running app |
+| `NEXT_PUBLIC_APP_URL` | ✅ | Base URL of the running app (e.g. `http://localhost:3000`) |
 
-> `NEXT_PUBLIC_APP_URL` is the only variable exposed to the browser. All others stay server-side.
+> `NEXT_PUBLIC_APP_URL` is the only variable exposed to the browser. All others remain server-side only.
 
 ---
 
@@ -123,9 +162,9 @@ Copy `.env.example` to `.env.local` and provide values for each variable. **Neve
 1. Create a free account at [https://www.mongodb.com/atlas](https://www.mongodb.com/atlas).
 2. Create a new **free-tier cluster** (M0).
 3. Under **Database Access**, create a database user with read/write permissions.
-4. Under **Network Access**, add your development IP address (or `0.0.0.0/0` for unrestricted access during development — tighten this before production).
+4. Under **Network Access**, add your development IP address (or `0.0.0.0/0` for unrestricted access during development).
 5. Click **Connect → Connect your application** and copy the connection string.
-6. Replace `<password>` in the connection string with your database user's password and append the database name before the query string: `.../community-events?retryWrites=true&w=majority`
+6. Replace `<password>` with your database user password and append the database name: `.../community-events?retryWrites=true&w=majority`
 7. Paste the full string as `MONGODB_URI` in `.env.local`.
 
 ---
@@ -137,21 +176,16 @@ npm run dev        # Start development server with Turbopack (http://localhost:3
 npm run build      # Production build
 npm run start      # Start the production server (requires a prior build)
 npm run lint       # Run ESLint
-npm run seed       # Seed 15 sample events into the database
 npm run seed-admin # Provision the admin account (idempotent, safe to re-run)
 ```
 
-> **Seed events**: `npm run seed` (uses `npx tsx scripts/seed-events.ts`). Requires `MONGODB_URI` to be set. Safe to re-run — uses upsert and does not create duplicates.
->
-> **Seed admin**: `npm run seed-admin` reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from environment variables. Run once before testing admin login. Safe to re-run. See [Admin Login Configuration](#admin-login-configuration) for details.
+> **Note:** The sample-event seed script (`npm run seed`) has been removed. The public listing will be empty until events are created by the admin through the API.
 
 ---
 
-## Admin Login Configuration
+## Admin Provisioning
 
-The admin account is created using the `npm run seed-admin` command, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your `.env` or `.env.local` file. **There is no public admin registration endpoint** — the signup API always assigns `role: "user"` regardless of what is submitted in the request body.
-
-### Provisioning the admin account
+The admin account is created by running `npm run seed-admin`, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your environment file. **There is no public admin registration endpoint** — the signup API always assigns `role: "user"`.
 
 ```bash
 # Ensure ADMIN_EMAIL and ADMIN_PASSWORD are set in .env.local, then:
@@ -160,17 +194,13 @@ npm run seed-admin
 
 **What the script does:**
 - Creates the admin account if it does not exist.
-- Leaves it unchanged if it exists with the correct password hash.
+- Leaves it unchanged if it already exists with the correct password hash.
 - Updates the password hash if `ADMIN_PASSWORD` has changed (credential rotation).
-- **Refuses to promote an existing normal user account.** If the email already belongs to a `user`-role account, the script exits with an error. Promotion requires manual action in MongoDB Atlas.
+- **Refuses to promote an existing normal user.** If the email already belongs to a `user`-role account, the script exits with an error.
 
 **Changing the admin password:** Update `ADMIN_PASSWORD` in your environment and re-run `npm run seed-admin`. The admin must log in again after the change.
 
-### Testing admin login
-
-Once provisioned, log in via `POST /api/auth/login` with the configured credentials. The response sets a `token` HTTP-only cookie. Verify admin access with `GET /api/admin/me`.
-
-Admin pages at `/admin/*` will be protected by Next.js Edge Middleware in a future phase. The API routes already enforce admin authorization server-side.
+**Sharing credentials with an evaluator:** Share `ADMIN_EMAIL` and `ADMIN_PASSWORD` values via a secure channel (encrypted message, private shared document, or Vercel environment variable dashboard). Never commit actual passwords to the repository.
 
 ---
 
@@ -179,8 +209,6 @@ Admin pages at `/admin/*` will be protected by Next.js Edge Middleware in a futu
 See [`docs/API.md`](docs/API.md) for the full REST API contract.
 
 **Base path**: `/api`
-
-Quick reference:
 
 | Area | Endpoints | Status |
 |---|---|---|
@@ -219,7 +247,7 @@ Collections: `events`, `users`, `reminders`, `carddesigns`.
 - All API inputs are validated with Zod before reaching the database.
 - The `role` field is never accepted from the client — signup always assigns `"user"` server-side.
 - Admin is provisioned via `npm run seed-admin` only; no public endpoint can create an admin.
-- All state-changing auth endpoints perform an `Origin` header check (in addition to `SameSite=Strict`) as a CSRF defence.
+- All state-changing auth endpoints perform an `Origin` header check as a CSRF defence.
 - Admin-sensitive endpoints re-read the user's role from the database rather than trusting the JWT claim.
 - The `.env.local` file is git-ignored. `.env.example` contains no real credentials.
 
@@ -227,9 +255,9 @@ Collections: `events`, `users`, `reminders`, `carddesigns`.
 
 ## Testing Instructions
 
-### Manual API testing (Phase 3 — auth)
+### Manual API testing
 
-Use any HTTP client (Postman, Bruno, curl) to exercise the auth endpoints. For browser-based testing, the `token` cookie is set automatically.
+Use any HTTP client (Postman, Bruno, curl) to exercise the API endpoints. For browser-based testing, the `token` cookie is set automatically by the login endpoint.
 
 ```
 POST /api/auth/signup    { "email": "...", "password": "..." }
@@ -237,9 +265,9 @@ POST /api/auth/login     { "email": "...", "password": "..." }
 GET  /api/auth/me        (requires token cookie)
 POST /api/auth/logout
 GET  /api/admin/me       (requires admin token cookie)
+GET  /api/events         (public; supports ?category=Music&city=...&search=...&page=1&limit=12)
+POST /api/admin/events   (requires admin token)
 ```
-
-All tested scenarios and actual results are recorded in [`docs/DEVELOPMENT-PLAN.md`](docs/DEVELOPMENT-PLAN.md#testing-checklist).
 
 ### Running checks
 
@@ -261,69 +289,61 @@ The application uses four MongoDB collections: `events`, `users`, `reminders`, a
 
 The public event listing (`GET /api/events`) builds a MongoDB filter with AND logic:
 
-1. **Base filter** — always applied: `{ isActive: true, date: { $gt: now } }`. This ensures only active, upcoming events are returned.
-2. **`category`** — exact case-sensitive enum match added when supplied. Unsupported values are rejected by Zod before reaching the database.
-3. **`city`** — case-insensitive substring regex (`/escaped_input/i`) added when supplied. User input is escaped with a regex escaping function before being passed to `RegExp` to prevent regex injection.
-4. **`search`** — MongoDB `$text` query operator added when supplied. Matches whole-word stems across the `title` and `description` text index. Partial-word substring matching (e.g. "jaz" matching "jazz") is **not** supported — this is standard `$text` behaviour, documented in `docs/API.md`.
+1. **Base filter** — always applied: `{ isActive: true, date: { $gt: now } }`.
+2. **`category`** — exact case-sensitive enum match.
+3. **`city`** — case-insensitive substring regex (`/escaped_input/i`).
+4. **`search`** — MongoDB `$text` query on the text index of `title` and `description`.
 
-**Sort order**: Results are always sorted by `date` ascending (nearest upcoming first). Text relevance score is **not** used as a sort key, preserving chronological order even when a search term is provided.
-
-**Index usage**:
-- No filters → `{ isActive: 1, date: 1 }` compound index.
-- With `category` → `{ category: 1, isActive: 1, date: 1 }` compound index.
-- With `city` → `{ city: 1, isActive: 1, date: 1 }` compound index (prefix anchoring not used; contains regex does not use index range scan, but the index still narrows the dataset when combined with equality conditions).
-- With `search` → text index on `{ title: "text", description: "text" }`. Category and city post-filters apply after the text scan.
-
-When all three filters are combined, MongoDB uses the text index for the `$text` clause and applies `isActive`, `date`, `category`, and `city` as residual filters. Full index selection details will be confirmed with `explain()` once live Atlas connectivity is available.
+Results are sorted by `date` ascending (nearest upcoming first). Text relevance score is not used as a sort key.
 
 ### 3. How are passwords stored, and how are the admin page and API protected?
 
-Passwords are hashed with `bcryptjs` at saltRounds = 12 before being saved to the database. The plain-text password is never persisted or logged.
-
-**Admin provisioning**: The admin account is created exclusively via `npm run seed-admin`, which reads credentials from environment variables server-side. The signup API enforces `role: "user"` regardless of any `role` field in the request body — there is no way to self-register as admin.
-
-**API authorization**: Each protected API route calls `getAuthFromRequest()` (from `src/lib/auth.ts`) to extract and verify the JWT from the cookie. For admin endpoints, the user's role is re-read from the database (not taken from the token) to ensure freshness. Unauthenticated requests receive `401 UNAUTHORIZED`; authenticated non-admin requests receive `403 FORBIDDEN`.
-
-**Defence in depth**: `SameSite=Strict` cookies prevent CSRF from cross-site pages. All state-changing auth endpoints additionally check the `Origin` header via `src/lib/csrf.ts`. Next.js Edge Middleware (planned) will add a third layer for page-level redirects.
+Passwords are hashed with `bcryptjs` at saltRounds = 12. The admin account is created exclusively via `npm run seed-admin`. Each protected API route calls `getAuthFromRequest()` to verify the JWT, and admin endpoints re-read the role from the database rather than trusting the JWT claim.
 
 ---
 
 ## AI Usage Disclosure
 
-AI tools were used to assist with documentation drafting and project planning for this project. See [`docs/AI-USAGE.md`](docs/AI-USAGE.md) for the full policy and usage log.
+AI tools were used to assist with documentation drafting, project planning, and code generation for this project. See [`docs/AI-USAGE.md`](docs/AI-USAGE.md) for the full policy and usage log.
 
-The usage log will be completed honestly at the end of development. All code generated with AI assistance is reviewed and understood before being committed.
+All code generated with AI assistance is reviewed and understood before being committed.
 
 ---
 
 ## Known Limitations and Remaining Work
 
-- **User features are implemented (API layer).** Phases 6–8 (Favourites, My Feed, Reminders, Card Design) are complete. The frontend UI (Phase 9) is planned.
-- `lucide-react` and `framer-motion` have not been installed (needed for Phase 9 UI).
+- **Frontend UI phases remaining:** Login, Signup, Admin Dashboard, My Feed, Reminders, and Card Designer pages are not yet implemented.
 - Next.js Edge Middleware (`src/middleware.ts`) for page-level route protection is not yet implemented.
-- `GET /api/admin/events` (admin event listing with inactive events) is planned but not yet implemented.
-- JWTs are stateless; there is no server-side revocation mechanism. If token revocation before expiry is required, a deny-list (e.g. Redis) would need to be added.
-- No rate limiting is currently planned; add before production deployment.
-- The MongoDB connection string in `.env` does not specify a database name, causing Mongoose to use the default `test` database. Update the URI to include the database name before production (e.g. `.../community-events-board?retryWrites=true&w=majority`).
-- Image upload is not planned; `imageUrl` accepts an external URL only.
-- City filter uses a contains regex (`/city/i`) which does not use a database index range scan. Acceptable at this scale; for larger datasets, consider normalising city to a stored-lowercase field and using an exact equality match.
+- `GET /api/admin/events` (admin event listing with inactive events) is planned but not implemented.
+- JWTs are stateless; no server-side revocation mechanism.
+- No rate limiting is currently implemented; add before production deployment.
+- Image upload is not supported; `imageUrl` accepts an external URL string only.
+- City filter uses a contains regex which does not use a database index range scan. Acceptable at current scale.
 - Full WCAG compliance requires manual testing with assistive technologies.
+- The events listing will be empty until events are created via the admin API.
+- The sample-event seed script has been removed to reflect a production-ready setup.
 
 ---
 
 ## Assignment Submission Checklist
 
-- [ ] All features listed in Feature Scope are implemented
-- [ ] MongoDB Atlas is connected and all collections are populated
-- [ ] Admin account is seeded and login works
-- [ ] Public event listing, filtering, sorting, and pagination work
-- [ ] User registration and login work
+- [x] MongoDB Atlas connected and models implemented
+- [x] Admin provisioning via `npm run seed-admin`
+- [x] Public event listing API with filters and pagination
+- [x] User registration and login (API)
 - [x] All personalization APIs implemented (Favourites, Feed, Reminders, Card Design)
-- [ ] Claymorphism UI implemented
-- [ ] Application is responsive on mobile and desktop
-- [ ] `.env.example` is complete with all variable names (no values)
-- [ ] No secrets committed to the repository
-- [ ] `docs/AI-USAGE.md` contains an honest usage log
-- [ ] Assignment questions answered in README
+- [x] Claymorphism design system (CSS tokens, shared components)
+- [x] Landing page with featured events
+- [x] Public events page with filters, pagination, loading/empty/error states
+- [x] Responsive design (mobile and desktop)
+- [x] `.env.example` complete with all variable names (no values)
+- [x] No secrets committed to the repository
+- [x] Sample-event seeder removed; admin provisioning retained
+- [ ] Auth UI pages (login, signup) — planned
+- [ ] Admin dashboard UI — planned
+- [ ] My Feed, Reminders, Card Designer UI — planned
+- [ ] `docs/AI-USAGE.md` usage log completed
+- [ ] Deployment URL filled in
+- [ ] Admin credentials shared securely with evaluator
 - [ ] Submission video recorded and uploaded
 - [ ] Repository link submitted

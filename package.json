@@ -7,13 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx tsx scripts/seed-events.ts",
     "seed-admin": "npx tsx scripts/seed-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "dotenv": "18.0.7",
+    "framer-motion": "14.1.0",
     "jsonwebtoken": "^9.0.3",
+    "lucide-react": "1.55.0",
     "mongoose": "^9.11.1",
     "next": "16.4.0",
     "react": "19.3.0",

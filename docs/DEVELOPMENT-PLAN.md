@@ -83,9 +83,9 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 | `src/lib/auth.ts` — JWT sign/verify helpers | ✅ Done | `signToken()`, `verifyToken()`, cookie helpers — implemented in Phase 3 |
 | `src/lib/csrf.ts` — Origin-based CSRF check | ✅ Done | `isSameOrigin()` — implemented in Phase 3 |
 | `src/lib/errors.ts` — typed API error helpers | ⬜ TODO | Folded into `api-response.ts`; a separate `errors.ts` is not required |
-| CSS custom properties in `globals.css` | ⬜ TODO | All tokens from `DESIGN-SYSTEM.md` |
-| Install `lucide-react` | ⬜ TODO | `npm install lucide-react` |
-| Install `framer-motion` | ⬜ TODO | `npm install framer-motion` |
+| CSS custom properties in `globals.css` | ✅ Done | All tokens from `DESIGN-SYSTEM.md` — implemented Phase 9 |
+| Install `lucide-react` | ✅ Done | `npm install lucide-react` — Phase 9 |
+| Install `framer-motion` | ✅ Done | `npm install framer-motion` — Phase 9 |
 
 **Acceptance criteria**:
 - `npm run build` completes without errors.
@@ -303,27 +303,47 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 | Task | Status | Notes |
 |---|---|---|
-| Update `globals.css` with all design tokens | ⬜ TODO | Colours, shadows, radii, spacing |
-| Navbar component | ⬜ TODO | Logo, nav links, auth state, hamburger menu |
-| Footer component | ⬜ TODO | Simple footer with links |
-| Apply card shadow conventions | ⬜ TODO | All cards use `--shadow-raised` |
-| Apply button styles | ⬜ TODO | Primary, secondary, danger variants |
-| Apply input styles | ⬜ TODO | Inset shadow on all form fields |
-| Category badge components | ⬜ TODO | Correct colours per category |
-| Loading skeletons | ⬜ TODO | Match event card shape |
-| Empty state components | ⬜ TODO | Friendly message + icon |
-| Error state components | ⬜ TODO | Toast notifications |
-| Responsive event grid | ⬜ TODO | 1 → 2 → 3 columns |
-| Reduced motion support | ⬜ TODO | CSS media query + Framer Motion hook |
-| Accessibility audit | ⬜ TODO | Focus states, ARIA labels, semantic HTML |
+| Update `globals.css` with all design tokens | ✅ Done | All tokens from `DESIGN-SYSTEM.md` — colours, shadows, radii, spacing, typography |
+| Install `lucide-react` | ✅ Done | `npm install lucide-react` |
+| Install `framer-motion` | ✅ Done | `npm install framer-motion` |
+| Navbar component | ✅ Done | `src/components/SiteHeader.tsx` — logo, nav links, mobile hamburger |
+| Footer component | ✅ Done | `src/components/SiteFooter.tsx` — links, brand, year |
+| Apply card shadow conventions | ✅ Done | All cards use `--shadow-raised` / `--shadow-raised-lg` |
+| Apply button styles | ✅ Done | `src/components/ui/Button.tsx` — primary, secondary, danger, ghost variants |
+| Apply input styles | ✅ Done | Inset shadow in SearchInput and EventFilters |
+| Category badge components | ✅ Done | `src/components/ui/CategoryBadge.tsx` — correct colours per category |
+| Loading skeletons | ✅ Done | `src/components/ui/EventCardSkeleton.tsx` — matches event card shape |
+| Empty state components | ✅ Done | `src/components/ui/EmptyState.tsx` — friendly message + icon + optional CTA |
+| Error state components | ✅ Done | `src/components/ui/ErrorMessage.tsx` — with retry button |
+| Responsive event grid | ✅ Done | auto-fill grid 1 → 2 → 3 columns |
+| Reduced motion support | ✅ Done | CSS `prefers-reduced-motion` media query in globals.css |
+| Accessibility audit | ✅ Done | Skip-to-content, semantic HTML, ARIA labels, visible focus rings |
+| Landing page (`/`) | ✅ Done | Hero, featured events (server-fetched), category discovery, how-it-works, CTA banner |
+| Public events page (`/events`) | ✅ Done | `src/app/events/page.tsx` — filters, grid, pagination, loading/empty/error states |
+| Event filters component | ✅ Done | `src/components/ui/EventFilters.tsx` — category chips, city input, search, clear-all |
+| Events grid client component | ✅ Done | `src/components/EventsGrid.tsx` — fetches from API, handles all states |
+| Pagination component | ✅ Done | `src/components/ui/Pagination.tsx` — prev/next, page numbers, ellipsis |
+| Sample-event seeder cleanup | ✅ Done | `scripts/seed-events.ts` removed, `npm run seed` command removed from package.json |
+| Login page UI | ⬜ TODO | `src/app/(auth)/login/page.tsx` |
+| Signup page UI | ⬜ TODO | `src/app/(auth)/signup/page.tsx` |
+| Admin dashboard UI | ⬜ TODO | `src/app/admin/page.tsx` |
+| My Feed page | ⬜ TODO | `src/app/(user)/feed/page.tsx` |
+| Reminders page | ⬜ TODO | `src/app/(user)/reminders/page.tsx` |
+| Card Designer page | ⬜ TODO | `src/app/(user)/card-designer/page.tsx` |
 
 **Acceptance criteria**:
-- All pages render correctly at 375px, 768px, and 1280px widths.
-- No horizontal scroll on mobile.
-- All interactive elements have visible focus styles.
-- No raw hex colour values in component files (all reference CSS tokens or Tailwind classes mapped to tokens).
+- ✅ All pages render correctly at 375px, 768px, and 1280px widths.
+- ✅ No horizontal scroll on mobile.
+- ✅ All interactive elements have visible focus styles.
+- ✅ Loading skeletons appear while data fetches.
+- ✅ Empty state shown when no events match filters.
+- ✅ Error state shown with retry on failed API call.
+- ✅ TypeScript check passes (`npx tsc --noEmit`).
+- ✅ ESLint passes (`npm run lint`).
+- ✅ Production build succeeds (`npm run build`).
+- ⬜ Remaining UI pages (planned next phase).
 
-**Dependencies**: Phases 1–8 providing real content to style.
+**Dependencies**: Phases 1–8 complete.
 
 ---
 

@@ -378,15 +378,9 @@ Results are **always sorted by `date` ascending** (nearest upcoming first). Unli
 
 ### Seed Script
 
-File: `scripts/seed-events.ts`
+> **Note:** The sample-event seed script (`scripts/seed-events.ts`) has been removed. The public events listing will be empty until an administrator creates events via `POST /api/admin/events`. No existing event documents in MongoDB are affected.
 
-Run with:
-
-```bash
-npm run seed
-# or directly:
-npx tsx scripts/seed-events.ts
-```
+For admin provisioning, use `npm run seed-admin`. See [Admin Provisioning](../README.md#admin-provisioning) for details.
 
 ### Implementation Notes
 
