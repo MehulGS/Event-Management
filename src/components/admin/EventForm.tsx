@@ -60,6 +60,9 @@ export function EventForm({ initial, eventId, mode }: EventFormProps) {
 
   const isEdit = mode === "edit";
 
+  /** Minimum date/time for the datetime-local input — current moment truncated to minutes. */
+  const minDatetime = toDatetimeLocal(new Date().toISOString());
+
   function set<K extends keyof EventFormData>(key: K, value: EventFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -76,6 +79,21 @@ export function EventForm({ initial, eventId, mode }: EventFormProps) {
       setFieldErrors({ price: ["Price must be a non-negative number."] });
       setLoading(false);
       return;
+    }
+
+    // Client-side past-date validation (mirrored on the server).
+    if (form.date) {
+      const selectedDate = new Date(form.date);
+      if (isNaN(selectedDate.getTime())) {
+        setFieldErrors({ date: ["Please enter a valid date and time."] });
+        setLoading(false);
+        return;
+      }
+      if (selectedDate <= new Date()) {
+        setFieldErrors({ date: ["Event date and time must be in the future."] });
+        setLoading(false);
+        return;
+      }
     }
 
     // Convert datetime-local to ISO string.
@@ -287,14 +305,24 @@ export function EventForm({ initial, eventId, mode }: EventFormProps) {
               type="datetime-local"
               required
               value={form.date}
+              min={minDatetime}
               onChange={(e) => set("date", e.target.value)}
               style={{ ...inputStyle, borderColor: borderColor("date") }}
               aria-required="true"
               aria-invalid={!!fieldErrors.date}
+              aria-describedby={fieldErrors.date ? "ef-date-error" : undefined}
               onFocus={onFocus}
               onBlur={onBlur}
             />
-            {fieldError("date")}
+            {fieldErrors.date && (
+              <p
+                id="ef-date-error"
+                role="alert"
+                style={{ fontSize: "var(--text-xs)", color: "#991B1B", marginTop: "var(--space-1)" }}
+              >
+                {fieldErrors.date[0]}
+              </p>
+            )}
           </div>
 
           {/* Price */}

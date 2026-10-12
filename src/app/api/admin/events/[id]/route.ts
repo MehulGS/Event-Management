@@ -42,7 +42,6 @@ import { isSameOrigin } from "@/lib/csrf";
 // ---------------------------------------------------------------------------
 // Validation schema (all fields optional for partial update)
 // ---------------------------------------------------------------------------
-
 const updateEventSchema = z
   .object({
     title: z
@@ -76,6 +75,9 @@ const updateEventSchema = z
       .string()
       .refine((v) => !isNaN(Date.parse(v)), {
         message: "Date must be a valid ISO 8601 date string.",
+      })
+      .refine((v) => new Date(v) > new Date(), {
+        message: "Event date must be in the future.",
       })
       .transform((v) => new Date(v))
       .optional(),
@@ -228,6 +230,69 @@ export async function PATCH(
       `[PATCH /api/admin/events/${id}] Unexpected error:`,
       safeMessage
     );
+    return internalError("An unexpected error occurred.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/events/[id]
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a single event document for admin use (includes inactive/past events).
+ * Used by the edit page to pre-populate the EventForm.
+ */
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
+  // Verify authentication.
+  const decoded = getAuthFromRequest(request);
+  if (!decoded) {
+    return unauthorized("Authentication is required.");
+  }
+
+  const { id } = await params;
+
+  if (!isValidObjectId(id)) {
+    return notFound("Event not found.");
+  }
+
+  try {
+    await connectDB();
+
+    // Re-read the role from the database.
+    const adminUser = await User.findById(decoded.userId).lean();
+    if (!adminUser) {
+      return unauthorized("User account not found.");
+    }
+    if (adminUser.role !== "admin") {
+      return forbidden("Admin access is required.");
+    }
+
+    const event = await Event.findById(id).lean<{
+      _id: { toString(): string };
+      title: string;
+      description: string;
+      category: string;
+      city: string;
+      date: Date;
+      price: number;
+      imageUrl: string;
+      isActive: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    }>();
+
+    if (!event) {
+      return notFound("Event not found.");
+    }
+
+    return ok({ data: serializeEvent(event) });
+  } catch (error: unknown) {
+    const safeMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error(`[GET /api/admin/events/${id}] Unexpected error:`, safeMessage);
     return internalError("An unexpected error occurred.");
   }
 }

@@ -3,16 +3,35 @@
 /**
  * Admin Dashboard — /admin
  *
- * Shows a summary of all events (active/inactive counts) and links to event
- * management. Data is fetched from GET /api/admin/events.
+ * Shows a paginated table of all events (active and inactive) with
+ * activate/deactivate controls. 10 events are shown per page.
+ * Data is fetched from GET /api/admin/events?page=N&limit=10.
  */
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, CheckCircle2, XCircle, LayoutDashboard, Loader2 } from "lucide-react";
+import {
+  Plus,
+  CheckCircle2,
+  XCircle,
+  LayoutDashboard,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
 import type { EventCategory } from "@/types";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const ADMIN_PAGE_SIZE = 10;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface AdminEvent {
   id: string;
@@ -31,12 +50,17 @@ interface AdminEventsResponse {
   data: AdminEvent[];
   pagination: {
     page: number;
+    limit: number;
     total: number;
     totalPages: number;
     hasNextPage: boolean;
     hasPrevPage: boolean;
   };
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-IN", {
@@ -55,61 +79,68 @@ function formatINR(price: number): string {
   }).format(price);
 }
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function AdminDashboardPage() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
-  const [total, setTotal] = useState(0);
+  const [pagination, setPagination] = useState<AdminEventsResponse["pagination"] | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
   const [confirmToggle, setConfirmToggle] = useState<AdminEvent | null>(null);
 
-  async function fetchEvents() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/events?limit=50", { credentials: "include" });
-      if (!res.ok) {
-        const json = await res.json();
-        setError(json.error?.message ?? "Failed to load events.");
-        return;
-      }
-      const json: AdminEventsResponse = await res.json();
-      setEvents(json.data);
-      setTotal(json.pagination.total);
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Tracks whether the component is still mounted during async fetches.
+  const [fetchTrigger, setFetchTrigger] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
+    let cancelled = false;
+
+    async function load() {
       setLoading(true);
       setError(null);
+
       try {
-        const res = await fetch("/api/admin/events?limit=50", { credentials: "include" });
-        if (!active) return;
+        const res = await fetch(
+          `/api/admin/events?page=${page}&limit=${ADMIN_PAGE_SIZE}`,
+          { credentials: "include" }
+        );
+        if (cancelled) return;
+
         if (!res.ok) {
           const json = await res.json();
-          if (active) setError(json.error?.message ?? "Failed to load events.");
+          if (!cancelled) setError(json.error?.message ?? "Failed to load events.");
           return;
         }
+
         const json: AdminEventsResponse = await res.json();
-        if (active) {
-          setEvents(json.data);
-          setTotal(json.pagination.total);
+        if (cancelled) return;
+
+        setEvents(json.data);
+        setPagination(json.pagination);
+
+        // Snap back to page 1 if the current page exceeds the last page.
+        if (json.pagination.totalPages > 0 && page > json.pagination.totalPages) {
+          setPage(1);
         }
       } catch {
-        if (active) setError("Network error. Please try again.");
+        if (!cancelled) setError("Network error. Please try again.");
       } finally {
-        if (active) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { active = false; };
-  }, []);
+    }
+
+    void load();
+    return () => { cancelled = true; };
+  }, [page, fetchTrigger]);
+
+  /** Triggers a fresh fetch of the current page (used by event handlers). */
+  function refreshCurrentPage() {
+    setFetchTrigger((n) => n + 1);
+  }
 
   async function toggleStatus(event: AdminEvent) {
     setConfirmToggle(null);
@@ -124,16 +155,19 @@ export default function AdminDashboardPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        setEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e, isActive: !event.isActive } : e))
-        );
         setStatusMsg({
           id: event.id,
           text: event.isActive ? "Event deactivated." : "Event activated.",
           ok: true,
         });
+        // Refresh current page so the table reflects the change.
+        refreshCurrentPage();
       } else {
-        setStatusMsg({ id: event.id, text: json.error?.message ?? "Failed to update status.", ok: false });
+        setStatusMsg({
+          id: event.id,
+          text: json.error?.message ?? "Failed to update status.",
+          ok: false,
+        });
       }
     } catch {
       setStatusMsg({ id: event.id, text: "Network error.", ok: false });
@@ -142,8 +176,11 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Summary counts come from pagination.total and current page events.
   const activeCount = events.filter((e) => e.isActive).length;
   const inactiveCount = events.filter((e) => !e.isActive).length;
+  const total = pagination?.total ?? 0;
+  const totalPages = pagination?.totalPages ?? 0;
 
   return (
     <div
@@ -209,8 +246,8 @@ export default function AdminDashboardPage() {
       >
         {[
           { label: "Total Events", value: total, color: "var(--color-accent-primary)" },
-          { label: "Active", value: activeCount, color: "#065F46" },
-          { label: "Inactive", value: inactiveCount, color: "#991B1B" },
+          { label: "Active (this page)", value: loading ? "–" : activeCount, color: "#065F46" },
+          { label: "Inactive (this page)", value: loading ? "–" : inactiveCount, color: "#991B1B" },
         ].map(({ label, value, color }) => (
           <div
             key={label}
@@ -225,7 +262,15 @@ export default function AdminDashboardPage() {
               gap: "var(--space-2)",
             }}
           >
-            <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span
+              style={{
+                fontSize: "var(--text-xs)",
+                fontWeight: 600,
+                color: "var(--color-text-secondary)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
               {label}
             </span>
             <span style={{ fontSize: "var(--text-3xl)", fontWeight: 700, color }}>
@@ -238,11 +283,7 @@ export default function AdminDashboardPage() {
       {/* Events table / list */}
       {loading ? (
         <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: "var(--space-16)",
-          }}
+          style={{ display: "flex", justifyContent: "center", padding: "var(--space-16)" }}
           role="status"
           aria-label="Loading events"
         >
@@ -255,7 +296,7 @@ export default function AdminDashboardPage() {
           <span className="sr-only">Loading events…</span>
         </div>
       ) : error ? (
-        <ErrorMessage message={error} onRetry={fetchEvents} />
+        <ErrorMessage message={error} onRetry={refreshCurrentPage} />
       ) : events.length === 0 ? (
         <div
           style={{
@@ -267,10 +308,23 @@ export default function AdminDashboardPage() {
             textAlign: "center",
           }}
         >
-          <p style={{ fontSize: "var(--text-xl)", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
+          <p
+            style={{
+              fontSize: "var(--text-xl)",
+              fontWeight: 600,
+              color: "var(--color-text-primary)",
+              margin: 0,
+            }}
+          >
             No events yet
           </p>
-          <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", marginTop: "var(--space-2)" }}>
+          <p
+            style={{
+              fontSize: "var(--text-sm)",
+              color: "var(--color-text-secondary)",
+              marginTop: "var(--space-2)",
+            }}
+          >
             Create your first event to get started.
           </p>
           <Link
@@ -303,6 +357,7 @@ export default function AdminDashboardPage() {
             overflow: "hidden",
           }}
         >
+          {/* Table */}
           <div style={{ overflowX: "auto" }}>
             <table
               style={{
@@ -319,21 +374,23 @@ export default function AdminDashboardPage() {
                     borderBottom: "1px solid var(--color-border)",
                   }}
                 >
-                  {["Title", "Category", "City", "Date", "Price", "Status", "Actions"].map((h) => (
-                    <th
-                      key={h}
-                      scope="col"
-                      style={{
-                        padding: "var(--space-3) var(--space-4)",
-                        textAlign: "left",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  {["Title", "Category", "City", "Date", "Price", "Status", "Actions"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        scope="col"
+                        style={{
+                          padding: "var(--space-3) var(--space-4)",
+                          textAlign: "left",
+                          fontWeight: 600,
+                          color: "var(--color-text-secondary)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -342,7 +399,9 @@ export default function AdminDashboardPage() {
                     key={event.id}
                     style={{
                       borderBottom: "1px solid var(--color-border)",
-                      backgroundColor: event.isActive ? "transparent" : "rgba(252,165,165,0.07)",
+                      backgroundColor: event.isActive
+                        ? "transparent"
+                        : "rgba(252,165,165,0.07)",
                     }}
                   >
                     {/* Title */}
@@ -373,17 +432,35 @@ export default function AdminDashboardPage() {
                     </td>
 
                     {/* City */}
-                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        padding: "var(--space-3) var(--space-4)",
+                        color: "var(--color-text-secondary)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {event.city}
                     </td>
 
                     {/* Date */}
-                    <td style={{ padding: "var(--space-3) var(--space-4)", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        padding: "var(--space-3) var(--space-4)",
+                        color: "var(--color-text-secondary)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {formatDate(event.date)}
                     </td>
 
                     {/* Price */}
-                    <td style={{ padding: "var(--space-3) var(--space-4)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        padding: "var(--space-3) var(--space-4)",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {formatINR(event.price)}
                     </td>
 
@@ -445,14 +522,22 @@ export default function AdminDashboardPage() {
                         <button
                           onClick={() => setConfirmToggle(event)}
                           disabled={toggling === event.id}
-                          aria-label={event.isActive ? `Deactivate ${event.title}` : `Activate ${event.title}`}
+                          aria-label={
+                            event.isActive
+                              ? `Deactivate ${event.title}`
+                              : `Activate ${event.title}`
+                          }
                           style={{
                             fontSize: "var(--text-xs)",
                             fontWeight: 600,
                             color: event.isActive ? "#991B1B" : "#065F46",
                             padding: "var(--space-1) var(--space-3)",
                             borderRadius: "var(--radius-sm)",
-                            border: `1px solid ${event.isActive ? "var(--color-accent-danger)" : "#A7F3D0"}`,
+                            border: `1px solid ${
+                              event.isActive
+                                ? "var(--color-accent-danger)"
+                                : "#A7F3D0"
+                            }`,
                             backgroundColor: event.isActive ? "#FEF2F2" : "#ECFDF5",
                             cursor: toggling === event.id ? "not-allowed" : "pointer",
                             opacity: toggling === event.id ? 0.7 : 1,
@@ -462,7 +547,11 @@ export default function AdminDashboardPage() {
                           }}
                         >
                           {toggling === event.id && (
-                            <Loader2 size={10} style={{ animation: "spin 1s linear infinite" }} aria-hidden="true" />
+                            <Loader2
+                              size={10}
+                              style={{ animation: "spin 1s linear infinite" }}
+                              aria-hidden="true"
+                            />
                           )}
                           {event.isActive ? "Deactivate" : "Activate"}
                         </button>
@@ -473,6 +562,176 @@ export default function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Pagination controls ── */}
+          {totalPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "var(--space-3)",
+                padding: "var(--space-4) var(--space-6)",
+                borderTop: "1px solid var(--color-border)",
+                backgroundColor: "var(--color-bg-sunken)",
+              }}
+            >
+              {/* Page info */}
+              <p
+                aria-live="polite"
+                aria-atomic="true"
+                style={{
+                  fontSize: "var(--text-sm)",
+                  color: "var(--color-text-secondary)",
+                  margin: 0,
+                }}
+              >
+                Page {page} of {totalPages}
+                <span
+                  style={{
+                    marginLeft: "var(--space-2)",
+                    color: "var(--color-text-disabled)",
+                  }}
+                >
+                  ({total} total event{total !== 1 ? "s" : ""})
+                </span>
+              </p>
+
+              {/* Page buttons */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}
+                role="navigation"
+                aria-label="Pagination"
+              >
+                {/* Previous */}
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  aria-label="Previous page"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "var(--space-1)",
+                    padding: "var(--space-2) var(--space-3)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--color-border)",
+                    backgroundColor: page <= 1 ? "var(--color-bg-sunken)" : "var(--color-bg-surface)",
+                    color: page <= 1 ? "var(--color-text-disabled)" : "var(--color-text-secondary)",
+                    fontWeight: 600,
+                    fontSize: "var(--text-sm)",
+                    cursor: page <= 1 ? "not-allowed" : "pointer",
+                    opacity: page <= 1 ? 0.5 : 1,
+                    boxShadow: page <= 1 ? "none" : "var(--shadow-raised)",
+                  }}
+                >
+                  <ChevronLeft size={14} aria-hidden="true" />
+                  Previous
+                </button>
+
+                {/* Numbered pages */}
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    // Always show first, last, and ±1 around current.
+                    return (
+                      p === 1 ||
+                      p === totalPages ||
+                      Math.abs(p - page) <= 1
+                    );
+                  })
+                  .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && typeof arr[idx - 1] === "number" && (p as number) - (arr[idx - 1] as number) > 1) {
+                      acc.push("…");
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === "…" ? (
+                      <span
+                        key={`ellipsis-${idx}`}
+                        aria-hidden="true"
+                        style={{
+                          padding: "var(--space-2) var(--space-1)",
+                          fontSize: "var(--text-sm)",
+                          color: "var(--color-text-disabled)",
+                        }}
+                      >
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={item}
+                        onClick={() => setPage(item as number)}
+                        aria-label={`Page ${item}`}
+                        aria-current={page === item ? "page" : undefined}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minWidth: 36,
+                          height: 36,
+                          borderRadius: "var(--radius-md)",
+                          border: `1px solid ${
+                            page === item
+                              ? "var(--color-accent-primary)"
+                              : "var(--color-border)"
+                          }`,
+                          backgroundColor:
+                            page === item
+                              ? "var(--color-accent-primary)"
+                              : "var(--color-bg-surface)",
+                          color:
+                            page === item
+                              ? "var(--color-text-inverse)"
+                              : "var(--color-text-secondary)",
+                          fontWeight: page === item ? 700 : 500,
+                          fontSize: "var(--text-sm)",
+                          cursor: "pointer",
+                          boxShadow:
+                            page === item
+                              ? "var(--shadow-raised-lg)"
+                              : "var(--shadow-raised)",
+                        }}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+
+                {/* Next */}
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  aria-label="Next page"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "var(--space-1)",
+                    padding: "var(--space-2) var(--space-3)",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--color-border)",
+                    backgroundColor:
+                      page >= totalPages
+                        ? "var(--color-bg-sunken)"
+                        : "var(--color-bg-surface)",
+                    color:
+                      page >= totalPages
+                        ? "var(--color-text-disabled)"
+                        : "var(--color-text-secondary)",
+                    fontWeight: 600,
+                    fontSize: "var(--text-sm)",
+                    cursor: page >= totalPages ? "not-allowed" : "pointer",
+                    opacity: page >= totalPages ? 0.5 : 1,
+                    boxShadow: page >= totalPages ? "none" : "var(--shadow-raised)",
+                  }}
+                >
+                  Next
+                  <ChevronRight size={14} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -511,11 +770,22 @@ export default function AdminDashboardPage() {
           >
             <h2
               id="confirm-title"
-              style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--color-text-primary)", margin: 0 }}
+              style={{
+                fontSize: "var(--text-lg)",
+                fontWeight: 700,
+                color: "var(--color-text-primary)",
+                margin: 0,
+              }}
             >
               {confirmToggle.isActive ? "Deactivate event?" : "Activate event?"}
             </h2>
-            <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)", margin: 0 }}>
+            <p
+              style={{
+                fontSize: "var(--text-sm)",
+                color: "var(--color-text-secondary)",
+                margin: 0,
+              }}
+            >
               {confirmToggle.isActive
                 ? `"${confirmToggle.title}" will be hidden from the public listing.`
                 : `"${confirmToggle.title}" will become visible to the public.`}
@@ -542,8 +812,12 @@ export default function AdminDashboardPage() {
                   padding: "var(--space-2) var(--space-5)",
                   borderRadius: "var(--radius-md)",
                   border: "1px solid transparent",
-                  backgroundColor: confirmToggle.isActive ? "var(--color-accent-danger)" : "var(--color-accent-primary)",
-                  color: confirmToggle.isActive ? "#7F1D1D" : "var(--color-text-inverse)",
+                  backgroundColor: confirmToggle.isActive
+                    ? "var(--color-accent-danger)"
+                    : "var(--color-accent-primary)",
+                  color: confirmToggle.isActive
+                    ? "#7F1D1D"
+                    : "var(--color-text-inverse)",
                   fontWeight: 700,
                   cursor: "pointer",
                   fontSize: "var(--text-sm)",

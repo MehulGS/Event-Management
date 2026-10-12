@@ -52,13 +52,14 @@ import {
 } from "@/lib/api-response";
 import { getAuthFromRequest } from "@/lib/auth";
 import { isSameOrigin } from "@/lib/csrf";
+import { runExpiry } from "@/lib/expireEvents";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const DEFAULT_PAGE = 1;
-const DEFAULT_LIMIT = 20;
+const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,9 @@ const createEventSchema = z.object({
     .min(1, "Date is required.")
     .refine((v) => !isNaN(Date.parse(v)), {
       message: "Date must be a valid ISO 8601 date string.",
+    })
+    .refine((v) => new Date(v) > new Date(), {
+      message: "Event date must be in the future.",
     })
     .transform((v) => new Date(v)),
 
@@ -192,6 +196,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
 
     const skip = (page - 1) * limit;
+
+    // Run expiry before listing so the admin dashboard reflects accurate status.
+    await runExpiry();
 
     const [events, total] = await Promise.all([
       Event.find({})

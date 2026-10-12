@@ -18,6 +18,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Palette, CheckCircle2, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { CARD_THEMES, CARD_STICKERS, MAX_STICKERS, type CardTheme, type CardSticker } from "@/types";
+import { buildEventSlug } from "@/lib/slug";
 import type { PublicEvent } from "@/lib/api-types";
 
 // ── Theme display metadata ────────────────────────────────────
@@ -150,7 +151,7 @@ export function CardDesigner({ event }: CardDesignerProps) {
         setNeedsAuth(true);
         setSaveState("error");
         setSaveError("You need to be logged in to save a card design.");
-        router.push("/login?next=/events/" + event.id);
+        router.push("/login?next=/events/" + buildEventSlug(event.title, event.id));
       } else {
         setSaveState("error");
         setSaveError(json.error?.message ?? "Failed to save design.");
@@ -201,7 +202,7 @@ export function CardDesigner({ event }: CardDesignerProps) {
             margin: 0,
           }}
         >
-          Card Designer
+          Design your card
         </h2>
         <span
           style={{

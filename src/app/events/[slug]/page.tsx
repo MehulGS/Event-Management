@@ -1,32 +1,32 @@
 /**
- * Public event detail page — /events/[id]
+ * Public event detail page — /events/[slug]
  *
- * Fetches a single active, upcoming event from GET /api/events/:id and
- * renders it with the full Claymorphism design system.
+ * URL format: /events/<title-slug>-<24-char-objectid>
+ * Example:    /events/coimbatore-jazz-evening-6acd20dbf9be593f89b0e8dd
  *
- * The MongoDB ObjectId lives in the URL only for record lookup; it is never
- * surfaced as a visible heading or label. The event title is the primary
- * identifier shown to the user throughout.
+ * The MongoDB ObjectId is always the last 24 characters of the slug segment.
+ * The slug prefix is derived from the event title for readability; it is not
+ * used for database lookup (only the ID is). This means:
+ *  - Old links with a stale slug continue to resolve (canonical redirect issued).
+ *  - Bare ObjectId URLs (/events/<id>) also resolve via redirect.
+ *  - Invalid or unresolvable segments return the friendly 404 page.
  *
  * States handled:
- *  - Loading  → Next.js streaming
- *  - Found    → full detail layout with reminder button + card designer
+ *  - Found + canonical slug → full detail layout
+ *  - Found + stale slug     → 301 redirect to canonical URL
  *  - Not found / inactive / past → 404-style "not found" page
- *  - API error → friendly error message with a back link
- *
- * The ReminderButton and CardDesigner are client components imported lazily
- * so they do not affect the server render of the public detail page.
+ *  - API error → friendly error with back link
  */
 
 export const instant = false;
 
 import { connection } from "next/server";
+import { redirect, notFound } from "next/navigation";
 
 import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { notFound } from "next/navigation";
 import {
   MapPin,
   Calendar,
@@ -37,9 +37,14 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
-import { ReminderButtonWrapper, CardDesignerWrapper, GuestCTAs } from "@/components/EventDetailClientSection";
+import {
+  ReminderButtonWrapper,
+  CardDesignerWrapper,
+  GuestCTAs,
+} from "@/components/EventDetailClientSection";
 import type { EventDetailResponse, PublicEvent } from "@/lib/api-types";
 import type { EventCategory } from "@/types";
+import { extractIdFromSlug, buildEventSlug, isCanonicalSlug } from "@/lib/slug";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -70,15 +75,16 @@ async function fetchEvent(id: string): Promise<PublicEvent | null> {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   await connection();
-  const { id } = await params;
-  const event = await fetchEvent(id);
+  const { slug } = await params;
 
-  if (!event) {
-    return { title: "Event not found" };
-  }
+  const id = extractIdFromSlug(slug);
+  if (!id) return { title: "Event not found" };
+
+  const event = await fetchEvent(id);
+  if (!event) return { title: "Event not found" };
 
   return {
     title: event.title,
@@ -125,13 +131,14 @@ function formatEventDate(dateStr: string): string {
 export default async function EventDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ slug: string }>;
 }) {
   await connection();
-  const { id } = await params;
+  const { slug } = await params;
 
-  const isValidId = /^[a-f\d]{24}$/i.test(id);
-  if (!isValidId) {
+  // Extract the MongoDB ObjectId from the slug segment.
+  const id = extractIdFromSlug(slug);
+  if (!id) {
     notFound();
   }
 
@@ -139,6 +146,12 @@ export default async function EventDetailPage({
 
   if (!event) {
     notFound();
+  }
+
+  // Canonical slug check — redirect if the slug is stale or bare-ID.
+  const canonical = buildEventSlug(event.title, event.id);
+  if (!isCanonicalSlug(slug, event.title, event.id)) {
+    redirect(`/events/${canonical}`);
   }
 
   const formattedDate = formatEventDate(event.date);
@@ -310,42 +323,131 @@ export default async function EventDetailPage({
                 `}</style>
 
                 {/* Date */}
-                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
+                <div
+                  style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor: "var(--color-bg-surface)",
+                      boxShadow: "var(--shadow-raised)",
+                      flexShrink: 0,
+                      color: "var(--color-accent-primary)",
+                    }}
+                  >
                     <Calendar size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        fontWeight: 600,
+                        color: "var(--color-text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: "var(--space-1)",
+                      }}
+                    >
                       Date &amp; Time
                     </div>
-                    <time dateTime={event.date} style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.4 }}>
+                    <time
+                      dateTime={event.date}
+                      style={{
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 500,
+                        color: "var(--color-text-primary)",
+                        lineHeight: 1.4,
+                      }}
+                    >
                       {formattedDate}
                     </time>
                   </div>
                 </div>
 
                 {/* City */}
-                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
+                <div
+                  style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor: "var(--color-bg-surface)",
+                      boxShadow: "var(--shadow-raised)",
+                      flexShrink: 0,
+                      color: "var(--color-accent-primary)",
+                    }}
+                  >
                     <MapPin size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        fontWeight: 600,
+                        color: "var(--color-text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: "var(--space-1)",
+                      }}
+                    >
                       City
                     </div>
-                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-text-primary)" }}>
+                    <span
+                      style={{
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 500,
+                        color: "var(--color-text-primary)",
+                      }}
+                    >
                       {event.city}
                     </span>
                   </div>
                 </div>
 
                 {/* Category */}
-                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
+                <div
+                  style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor: "var(--color-bg-surface)",
+                      boxShadow: "var(--shadow-raised)",
+                      flexShrink: 0,
+                      color: "var(--color-accent-primary)",
+                    }}
+                  >
                     <Tag size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        fontWeight: 600,
+                        color: "var(--color-text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: "var(--space-1)",
+                      }}
+                    >
                       Category
                     </div>
                     <CategoryBadge category={event.category as EventCategory} />
@@ -353,24 +455,65 @@ export default async function EventDetailPage({
                 </div>
 
                 {/* Price */}
-                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
-                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
+                <div
+                  style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}
+                >
+                  <div
+                    aria-hidden="true"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor: "var(--color-bg-surface)",
+                      boxShadow: "var(--shadow-raised)",
+                      flexShrink: 0,
+                      color: "var(--color-accent-primary)",
+                    }}
+                  >
                     <Ticket size={16} />
                   </div>
                   <div>
-                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-xs)",
+                        fontWeight: 600,
+                        color: "var(--color-text-secondary)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginBottom: "var(--space-1)",
+                      }}
+                    >
                       Ticket Price
                     </div>
-                    <span style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: event.price === 0 ? "var(--color-cat-sports-text)" : "var(--color-text-primary)" }}>
+                    <span
+                      style={{
+                        fontSize: "var(--text-lg)",
+                        fontWeight: 700,
+                        color:
+                          event.price === 0
+                            ? "var(--color-cat-sports-text)"
+                            : "var(--color-text-primary)",
+                      }}
+                    >
                       {formattedPrice}
                     </span>
                   </div>
                 </div>
 
                 {/* Divider */}
-                <div aria-hidden="true" style={{ height: 1, backgroundColor: "var(--color-border)", margin: "var(--space-1) 0" }} />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: 1,
+                    backgroundColor: "var(--color-border)",
+                    margin: "var(--space-1) 0",
+                  }}
+                />
 
-                {/* Reminder button (client component — shows based on auth state) */}
+                {/* Reminder button */}
                 <ReminderButtonWrapper eventId={event.id} eventTitle={event.title} />
 
                 {/* Guest CTAs — shown only to unauthenticated visitors */}
@@ -380,14 +523,27 @@ export default async function EventDetailPage({
           </div>
         </article>
 
-        {/* Card Designer (client component — loads after page render) */}
+        {/* Card Designer */}
         <CardDesignerWrapper event={event} />
 
         {/* Browse more */}
         <div style={{ marginTop: "var(--space-8)", textAlign: "center" }}>
           <Link
             href="/events"
-            style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)", padding: "var(--space-3) var(--space-8)", backgroundColor: "var(--color-bg-surface)", color: "var(--color-text-primary)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600, textDecoration: "none", boxShadow: "var(--shadow-raised)" }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--space-2)",
+              padding: "var(--space-3) var(--space-8)",
+              backgroundColor: "var(--color-bg-surface)",
+              color: "var(--color-text-primary)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              fontSize: "var(--text-sm)",
+              fontWeight: 600,
+              textDecoration: "none",
+              boxShadow: "var(--shadow-raised)",
+            }}
           >
             ← Browse more events
           </Link>

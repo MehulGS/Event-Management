@@ -1,7 +1,7 @@
 /**
- * Custom not-found UI for /events/[id].
+ * Custom not-found UI for /events/[slug].
  * Shown when notFound() is called from the detail page (missing, inactive,
- * past event, or malformed ID).
+ * past event, or malformed ID / slug).
  */
 import React from "react";
 import Link from "next/link";

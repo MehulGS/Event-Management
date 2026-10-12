@@ -38,6 +38,7 @@ import {
 } from "@/lib/api-response";
 import { getAuthFromRequest } from "@/lib/auth";
 import { isSameOrigin } from "@/lib/csrf";
+import { runExpiry } from "@/lib/expireEvents";
 
 // ---------------------------------------------------------------------------
 // Validation schema
@@ -113,6 +114,9 @@ export async function PATCH(
     if (adminUser.role !== "admin") {
       return forbidden("Admin access is required.");
     }
+
+    // Run expiry so admin dashboard reflects accurate status after toggling.
+    await runExpiry();
 
     // Step 6: Update the isActive flag.
     const updatedEvent = await Event.findByIdAndUpdate(

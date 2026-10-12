@@ -29,7 +29,7 @@ export default function AdminEditEventPage() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/admin/events?limit=100`, { credentials: "include" })
+    fetch(`/api/admin/events/${id}`, { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) {
           const json = await res.json();
@@ -37,7 +37,7 @@ export default function AdminEditEventPage() {
           return;
         }
         const json = await res.json();
-        const found = (json.data as AdminEvent[]).find((e) => e.id === id);
+        const found = json.data as AdminEvent | undefined;
         if (!found) {
           setError("Event not found.");
         } else {
