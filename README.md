@@ -28,26 +28,31 @@ A responsive full-stack web application where administrators manage community ev
 20. [Assignment Questions](#assignment-questions)
 21. [AI Usage Disclosure](#ai-usage-disclosure)
 22. [Known Limitations and Remaining Work](#known-limitations-and-remaining-work)
-23. [Assignment Submission Checklist](#assignment-submission-checklist)
 
 ---
 
 ## Live Demo
 
-> **Deployment pending.** The live URL will be updated here once the application is deployed to Vercel.
+**[https://event-management-sand-six.vercel.app/](https://event-management-sand-six.vercel.app/)**
+
+The application is deployed on Vercel and connected to a MongoDB Atlas cluster. No local setup is required to explore the live site.
 
 ---
 
 ## Admin Login
 
-The admin account is provisioned via `npm run seed-admin` using environment variables — see [Admin Provisioning](#admin-provisioning).
+The deployed application has a pre-provisioned admin account for evaluator access.
 
-**How to share credentials with an evaluator:**
-- Do **not** commit credentials to the repository.
-- Share the `ADMIN_EMAIL` and `ADMIN_PASSWORD` values securely (e.g. via an encrypted message, a private shared document, or Vercel environment variable access).
-- The evaluator runs `npm run seed-admin` locally with those values to provision the admin account.
-- Navigate to `/login` in the browser and log in with the admin credentials.
-- After login, the header automatically shows admin links: **Dashboard** and **Manage Events**.
+- **Email:** `adminji@yopmail.com`
+- **Password:** *(shared privately with the evaluator — not published here as the repository is public)*
+
+Navigate to [/login](https://event-management-sand-six.vercel.app/login) and enter the credentials above. After login the header automatically shows **Dashboard** and **Manage Events** links.
+
+> **Evaluators:** The admin password will be shared via a private channel (e.g. a private note, encrypted message, or directly in the assignment submission form). Do not attempt to commit or expose the password through any public channel.
+
+### Provisioning your own admin (local development)
+
+The admin account is created by running `npm run seed-admin`, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your environment file — see [Admin Provisioning](#admin-provisioning).
 
 ---
 
@@ -158,9 +163,7 @@ Copy `.env.example` to `.env.local` and provide values for each variable. **Neve
 | `JWT_EXPIRES_IN` | ✅ | Token lifespan, e.g. `7d` |
 | `ADMIN_EMAIL` | ✅ | Email address of the seeded admin account |
 | `ADMIN_PASSWORD` | ✅ | Password for the seeded admin account |
-| `NEXT_PUBLIC_APP_URL` | ✅ | Base URL of the running app (e.g. `http://localhost:3000`) |
-
-> `NEXT_PUBLIC_APP_URL` is the only variable exposed to the browser. All others remain server-side only.
+| `NEXT_PUBLIC_APP_URL` | optional | Base URL of the running app (e.g. `http://localhost:3000`). Not required for auth to work — used only if you re-enable the optional Origin CSRF check. |
 
 ---
 
@@ -249,7 +252,6 @@ Collections: `events`, `users`, `reminders`, `carddesigns`.
 - All API inputs are validated with Zod before reaching the database.
 - The `role` field is never accepted from the client — signup always assigns `"user"` server-side.
 - Admin is provisioned via `npm run seed-admin` only; no public endpoint can create an admin.
-- All state-changing auth endpoints perform an `Origin` header check as a CSRF defence.
 - Admin-sensitive endpoints re-read the user's role from the database rather than trusting the JWT claim.
 - Edge middleware redirects unauthenticated requests away from `/feed`, `/favorites`, `/reminders`, and `/admin`.
 - The `.env.local` file is git-ignored. `.env.example` contains no real credentials.
@@ -362,9 +364,8 @@ The preview panel updates **immediately** on every theme or sticker change. It d
 
 ### Evaluator flow
 
-1. Copy `.env.example` to `.env.local` and fill in all variables.
-2. Run `npm run seed-admin` to provision the admin account.
-3. Run `npm run dev` and open [http://localhost:3000](http://localhost:3000).
+1. Visit the live demo at **[https://event-management-sand-six.vercel.app/](https://event-management-sand-six.vercel.app/)** — no local setup required.
+2. For local testing: copy `.env.example` to `.env.local`, fill in all variables, run `npm run seed-admin`, then `npm run dev`.
 
 ### Pages to verify
 
@@ -443,44 +444,3 @@ All code generated with AI assistance is reviewed and understood before being co
 - Image upload is not supported; `imageUrl` accepts an external URL string only.
 - Full WCAG compliance requires manual testing with assistive technologies.
 - **No sample-event seeder**: The public listing is empty until events are created via the admin dashboard. There is no `npm run seed` command.
-
----
-
-## Assignment Submission Checklist
-
-- [x] MongoDB Atlas connected and models implemented
-- [x] Admin provisioning via `npm run seed-admin` (no sample-event seeder)
-- [x] Public event listing API with filters and pagination
-- [x] User registration and login (API + UI)
-- [x] All personalization APIs implemented (Favourites, Feed, Reminders, Card Design)
-- [x] Claymorphism design system (CSS tokens, shared components)
-- [x] Landing page with featured events
-- [x] Public events page with filters, pagination, loading/empty/error states
-- [x] Responsive design (mobile and desktop)
-- [x] Login and Signup page UIs
-- [x] Authentication-aware navigation header
-- [x] Edge middleware for route protection
-- [x] Admin dashboard — 10 events per page with working pagination
-- [x] Admin create/edit event UIs
-- [x] Past-date validation (client + server)
-- [x] Expired-event automatic deactivation (`runExpiry` utility)
-- [x] Readable slug-based event URLs (`/events/<slug>-<id>`)
-- [x] Canonical redirect for stale/bare-ID URLs
-- [x] "Design your card" section on event detail page
-- [x] Card Designer live preview with real event data
-- [x] Card Design persistence and restore-on-reload
-- [x] Favourite categories UI
-- [x] My Feed UI
-- [x] My Reminders UI
-- [x] Indian currency (INR) formatting throughout
-- [x] Friendly date formatting throughout
-- [x] Loading, empty, and error states on all data views
-- [x] TypeScript: 0 errors
-- [x] ESLint: 0 errors
-- [x] Production build: successful (26/26 pages)
-- [x] No real credentials in repository
-- [x] docs/AI-USAGE.md usage log completed
-- [ ] Deployment URL filled in
-- [ ] Admin credentials shared securely with evaluator
-- [ ] Submission video recorded and uploaded
-- [ ] Repository link submitted
