@@ -1,6 +1,6 @@
 # Database Design — Community Events Board
 
-> **Status**: Phase 2 complete. All four Mongoose models are implemented in `src/models/`. The seed script (`scripts/seed-events.ts`) has been executed against MongoDB Atlas and verified. See the [Seed Data](#seed-data) section below.
+> **Status**: Complete. All four Mongoose models are implemented in `src/models/`. The sample-event seed script has been removed — the public events listing will be empty until an administrator creates events via the admin dashboard or `POST /api/admin/events`. Admin provisioning uses `npm run seed-admin`.
 
 ---
 
@@ -376,39 +376,24 @@ Results are **always sorted by `date` ascending** (nearest upcoming first). Unli
 
 ## Seed Data
 
-### Seed Script
+### Admin Provisioning
 
-> **Note:** The sample-event seed script (`scripts/seed-events.ts`) has been removed. The public events listing will be empty until an administrator creates events via `POST /api/admin/events`. No existing event documents in MongoDB are affected.
+The only seeding available is the admin account provisioner:
 
-For admin provisioning, use `npm run seed-admin`. See [Admin Provisioning](../README.md#admin-provisioning) for details.
+```bash
+npm run seed-admin
+```
 
-### Implementation Notes
+This is idempotent — safe to re-run on every deployment. It reads `ADMIN_EMAIL` and `ADMIN_PASSWORD` from the environment and creates or updates the admin account without affecting any existing data. See [Admin Provisioning](../README.md#admin-provisioning) for full details.
 
-**Deduplication strategy**: each event is identified by its `title` field. The script uses `Event.updateOne({ title }, { $set: ... }, { upsert: true })` so re-running the script is safe — it updates existing documents and creates missing ones without duplicating.
+### Event Data
 
-**Date recalculation**: event dates are computed relative to `Date.now()` at seed execution so that upcoming/past split always makes sense regardless of when the script runs.
+The sample-event seed script (`scripts/seed-events.ts`) has been **removed**. The public events listing will be empty until an administrator creates events via:
 
-### Verified Distribution (executed 2026-10-12)
+- The admin dashboard at `/admin` → **Create event**
+- Or directly via the API: `POST /api/admin/events`
 
-| Metric | Count |
-|---|---|
-| Total seed events | 15 |
-| Active upcoming | 9 |
-| Inactive upcoming | 2 |
-| Past (any active state) | 4 |
-| Categories covered | Music (4), Workshop (3), Food (3), Sports (3), Kids (3) — wait: see below |
-| Cities covered | Coimbatore (5), Chennai (2), Bangalore (2), Mumbai (2), Hyderabad (2), Delhi (1), Pune (1) |
-
-**Category distribution**:
-- Music: 4 (Coimbatore Jazz Evening, Chennai Indie Music Fest, Chennai Classical Music Night, Pune Rock Night [Draft])
-- Workshop: 3 (Bangalore Web Dev Workshop, Coimbatore UI/UX Design Sprint, Bangalore Python Bootcamp)
-- Food: 3 (Mumbai Street Food Festival, Coimbatore Organic Food Fair, Mumbai Biryani Battle)
-- Sports: 3 (Hyderabad 10K Community Run, Coimbatore Marathon Preview [Draft], Hyderabad Junior Football League*)
-- Kids: 3 (Delhi Kids Science Carnival, Coimbatore Kids Art Camp, Hyderabad Junior Football League)
-
-> *The Hyderabad Junior Football League is categorised as `Kids`.
-
-**Seed execution verified**: 15 events inserted on first run, 0 duplicates on second run.
+No existing event documents in MongoDB are affected by removing the seed script.
 
 ### Implemented Models
 

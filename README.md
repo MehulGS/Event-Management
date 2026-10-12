@@ -318,7 +318,7 @@ All code generated with AI assistance is reviewed and understood before being co
 
 ## Known Limitations and Remaining Work
 
-- Next.js 16 deprecates `middleware.ts` in favour of `proxy.ts` — a codemod migration is available via `npx @next/codemod@canary middleware-to-proxy .`.
+- **Middleware deprecation**: Next.js 16 deprecates `middleware.ts` in favour of `proxy.ts`. The automatic migration is available via `npx @next/codemod@canary middleware-to-proxy .` and should be applied before a stable production deployment. For the purposes of this assignment the current middleware functions correctly.
 - JWTs are stateless; no server-side revocation mechanism.
 - No rate limiting is implemented; add before production deployment.
 - Image upload is not supported; `imageUrl` accepts an external URL string only.
@@ -354,10 +354,13 @@ All code generated with AI assistance is reviewed and understood before being co
 - [x] `GET /api/admin/events` endpoint (was missing; now implemented)
 - [x] `.env.example` complete with all variable names (no values)
 - [x] No secrets committed to the repository
-- [x] TypeScript check passes (source files clean)
+- [x] TypeScript check passes (0 errors)
 - [x] ESLint passes (0 errors)
-- [x] Production build succeeds
-- [ ] `docs/AI-USAGE.md` usage log completed
+- [x] Production build succeeds (26/26 pages generated)
+- [x] `docs/AI-USAGE.md` usage log completed
+- [x] Guest-only sign-up/login CTAs on event detail hidden from authenticated users
+- [x] `/admin/events` navigates to admin dashboard (no more dead-end page)
+- [x] DATABASE.md updated — removed stale references to deleted seed script
 - [ ] Deployment URL filled in
 - [ ] Admin credentials shared securely with evaluator
 - [ ] Submission video recorded and uploaded

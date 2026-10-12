@@ -37,7 +37,7 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
-import { ReminderButtonWrapper, CardDesignerWrapper } from "@/components/EventDetailClientSection";
+import { ReminderButtonWrapper, CardDesignerWrapper, GuestCTAs } from "@/components/EventDetailClientSection";
 import type { EventDetailResponse, PublicEvent } from "@/lib/api-types";
 import type { EventCategory } from "@/types";
 
@@ -373,23 +373,8 @@ export default async function EventDetailPage({
                 {/* Reminder button (client component — shows based on auth state) */}
                 <ReminderButtonWrapper eventId={event.id} eventTitle={event.title} />
 
-                {/* Fallback CTAs for guests are handled inside ReminderButton via loading state;
-                    the component itself shows nothing if the user isn't logged in since
-                    the reminder fetch returns 401 and state = "error". We add plain links below. */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                  <Link
-                    href="/signup"
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "var(--space-2)", padding: "var(--space-3) var(--space-6)", backgroundColor: "var(--color-accent-primary)", color: "var(--color-text-inverse)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 700, textDecoration: "none", boxShadow: "var(--shadow-raised)", textAlign: "center" }}
-                  >
-                    Sign up to set reminder
-                  </Link>
-                  <Link
-                    href="/login"
-                    style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-3) var(--space-6)", backgroundColor: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600, textDecoration: "none", textAlign: "center" }}
-                  >
-                    Already have an account? Log in
-                  </Link>
-                </div>
+                {/* Guest CTAs — shown only to unauthenticated visitors */}
+                <GuestCTAs />
               </aside>
             </div>
           </div>
