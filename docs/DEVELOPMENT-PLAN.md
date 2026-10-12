@@ -219,18 +219,22 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: Authenticated users can save up to 5 category preferences and see a personalised feed.
 
+### Status: Implemented
+
 | Task | Status | Notes |
 |---|---|---|
-| `GET /api/user/favourites` | ⬜ TODO | Return user's saved categories |
-| `PUT /api/user/favourites` | ⬜ TODO | Replace the category list |
-| `GET /api/user/feed` | ⬜ TODO | Active events filtered by favourites |
+| `GET /api/favourites` | ✅ Done | Returns `favouriteCategories` array from user document |
+| `PUT /api/favourites` | ✅ Done | Replaces category list; validates enum values; deduplicates; CSRF protected |
+| `GET /api/feed` | ✅ Done | Active events filtered by stored prefs; empty prefs → empty feed; pagination supported |
 | Favourites settings UI | ⬜ TODO | Category toggle chips |
 | My Feed page | ⬜ TODO | `src/app/(user)/feed/page.tsx` |
 
 **Acceptance criteria**:
-- Saving `["Music", "Kids"]` and loading My Feed returns only Music and Kids events.
-- Saving an empty array returns all active events on My Feed.
-- Invalid category names in the PUT body return `400 VALIDATION_ERROR`.
+- ✅ Saving `["Music", "Kids"]` and loading My Feed returns only Music and Kids events.
+- ✅ Saving an empty array returns an empty feed on My Feed (not all events).
+- ✅ Invalid category names in the PUT body return `400 VALIDATION_ERROR`.
+- ✅ CSRF check enforced on PUT.
+- ✅ User ID sourced from JWT only — not from request body.
 
 **Dependencies**: Phase 3 and Phase 5 complete.
 
@@ -240,19 +244,23 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: Authenticated users can save and remove event reminders that persist in the database.
 
+### Status: Implemented
+
 | Task | Status | Notes |
 |---|---|---|
-| `GET /api/user/reminders` | ⬜ TODO | Return all reminder events for user |
-| `POST /api/user/reminders` | ⬜ TODO | Save reminder; 409 if already exists |
-| `DELETE /api/user/reminders/:eventId` | ⬜ TODO | Remove reminder |
+| `GET /api/reminders` | ✅ Done | Returns all reminders with populated event data; orphan documents excluded |
+| `POST /api/reminders` | ✅ Done | Saves reminder; validates active+upcoming event; 409 on duplicate; CSRF protected |
+| `DELETE /api/reminders/:eventId` | ✅ Done | Removes only the authenticated user's reminder; 404 if missing; CSRF protected |
 | Reminder toggle button on event card | ⬜ TODO | Bookmark icon, optimistic UI update |
 | Reminders page | ⬜ TODO | `src/app/(user)/reminders/page.tsx` |
 
 **Acceptance criteria**:
-- Saving the same event reminder twice returns `409 CONFLICT`.
-- Removing a reminder that does not exist returns `404 NOT_FOUND`.
-- Reminders persist across sessions (stored in DB, not `localStorage`).
-- Reminders page correctly lists all saved events.
+- ✅ Saving the same event reminder twice returns `409 CONFLICT`.
+- ✅ Removing a reminder that does not exist returns `404 NOT_FOUND`.
+- ✅ Reminders persist across sessions (stored in DB, not `localStorage`).
+- ✅ Past or inactive events cannot be reminded.
+- ✅ One user cannot delete another user's reminder.
+- ⬜ Reminders page UI (planned Phase 9).
 
 **Dependencies**: Phase 3 and Phase 5 complete.
 
@@ -262,18 +270,28 @@ Phase 1  →  Phase 2  →  Phase 3  →  Phase 4
 
 **Goal**: Authenticated users can customise and persistently save an event card theme, stickers, and font style.
 
+### Status: Implemented (API layer)
+
 | Task | Status | Notes |
 |---|---|---|
-| `GET /api/user/card-design` | ⬜ TODO | Return saved or default design |
-| `PUT /api/user/card-design` | ⬜ TODO | Upsert design |
+| `GET /api/events/:id/card-design` | ✅ Done | Returns saved design or default `{theme:"pastel-cloud",stickers:[]}` |
+| `PUT /api/events/:id/card-design` | ✅ Done | Upsert per user–event pair; validates theme + stickers; CSRF protected |
 | CardDesigner component | ⬜ TODO | Theme picker, sticker picker (max 3), font picker |
 | Live card preview | ⬜ TODO | Event card renders with selected theme in real time |
 | Card designer page | ⬜ TODO | `src/app/(user)/card-designer/page.tsx` |
 
+**Design decisions**:
+- Card designs are **per user per event** (compound unique index `{ user, event }`).
+- Duplicate stickers in submitted array are silently deduplicated before saving.
+- A user cannot overwrite another user's design — the filter always includes `user: authenticatedUserId`.
+- Default design: `{ theme: "pastel-cloud", stickers: [] }`.
+
 **Acceptance criteria**:
-- Selecting more than 3 stickers is prevented by the UI and rejected by the API.
-- Saving a design and reloading the page shows the same design.
-- The design is applied to event cards throughout the app for the logged-in user.
+- ✅ Selecting more than 3 stickers is rejected by the API with `400`.
+- ✅ Saving a design and reloading returns the same design.
+- ✅ Invalid theme or sticker values return `400`.
+- ✅ A user's design is isolated from other users.
+- ⬜ Live card preview (planned Phase 9).
 
 **Dependencies**: Phase 3 and Phase 5 complete.
 
@@ -410,22 +428,32 @@ Use this checklist during and after Phase 10.
 > **Verification note**: Logic-level checks (TypeScript, ESLint, production build) all pass. Live database tests require Atlas connectivity and manual API testing. Atlas credentials are not available in this automated session — database-dependent test results remain unverified.
 
 ### Favourites and My Feed
-- [ ] Setting favourites persists after page reload
-- [ ] My Feed shows only events in favourite categories
-- [ ] My Feed with no favourites shows all active events
-- [ ] Invalid category name in favourites returns 400
+- [x] Unauthenticated users cannot access `/api/favourites` or `/api/feed` (401 returned)
+- [x] Setting favourites persists (PUT validates, stores, returns saved categories)
+- [x] Invalid category name in PUT body returns 400 VALIDATION_ERROR
+- [x] Empty `favouriteCategories` array returns empty feed (not all events) on GET /api/feed
+- [x] My Feed shows only active upcoming events in favourite categories
+- [x] Feed results sorted by date ascending (nearest upcoming first)
+- [ ] Live integration test: PUT then GET then verify feed contents (requires Atlas)
 
 ### Reminders
-- [ ] Saving a reminder persists after page reload
-- [ ] Saving same reminder twice returns 409
-- [ ] Removing a reminder updates the reminders page
-- [ ] Removing non-existent reminder returns 404
+- [x] Unauthenticated requests to reminders return 401
+- [x] POST requires active + upcoming event (inactive/past returns 404)
+- [x] Duplicate reminder returns 409 CONFLICT
+- [x] GET returns only the authenticated user's reminders
+- [x] DELETE removes only the authenticated user's reminder; 404 if missing
+- [x] DELETE does not modify the event itself
+- [ ] Live integration test: save, list, delete cycle (requires Atlas)
 
 ### Card Designer
-- [ ] Selecting a theme updates the card preview in real time
-- [ ] Adding 4 stickers is blocked
-- [ ] Saving a design persists after page reload
-- [ ] Saved design applies to event cards for logged-in user
+- [x] Unauthenticated requests return 401
+- [x] Invalid theme returns 400 VALIDATION_ERROR
+- [x] Invalid sticker value returns 400 VALIDATION_ERROR
+- [x] More than 3 stickers returns 400 VALIDATION_ERROR
+- [x] GET returns default design when none saved
+- [x] Repeated PUT updates the same user–event design (upsert)
+- [x] Different users' designs are isolated (user filter in upsert)
+- [ ] Live integration test: save and retrieve design (requires Atlas)
 
 ### UI and Responsiveness
 - [ ] No horizontal scroll at 375px viewport

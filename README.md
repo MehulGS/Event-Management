@@ -42,14 +42,14 @@ A responsive full-stack web application where administrators manage community ev
 | Admin event creation (`POST /api/admin/events`) | ✅ Implemented |
 | Admin event editing (`PATCH /api/admin/events/:id`) | ✅ Implemented |
 | Admin event activation/deactivation (`PATCH /api/admin/events/:id/status`) | ✅ Implemented |
-| Favourite category selection | ⬜ Planned |
-| Personalised My Feed | ⬜ Planned |
-| Persistent reminders (database-backed) | ⬜ Planned |
-| Persistent card designer (database-backed) | ⬜ Planned |
+| Favourite category selection | ✅ Implemented |
+| Personalised My Feed | ✅ Implemented |
+| Persistent reminders (database-backed) | ✅ Implemented |
+| Persistent card designer (database-backed) | ✅ Implemented |
 | Claymorphism UI | ⬜ Planned |
 | Responsive layout (mobile and desktop) | ⬜ Planned |
 
-**Phases 1–5 (Backend Foundation through Public Event Discovery)** are complete. All other features are planned.
+**Phases 1–8 (Backend Foundation through Personalization APIs)** are complete. Frontend UI (Phase 9) and remaining features are planned.
 
 ---
 
@@ -195,10 +195,11 @@ Quick reference:
 | Admin events | `POST /api/admin/events` | ✅ Live |
 | Admin events | `PATCH /api/admin/events/:id` | ✅ Live |
 | Admin events | `PATCH /api/admin/events/:id/status` | ✅ Live |
-| Favourites | `GET/PUT /api/user/favourites` | ⬜ Planned |
-| My Feed | `GET /api/user/feed` | ⬜ Planned |
-| Reminders | `GET/POST/DELETE /api/user/reminders` | ⬜ Planned |
-| Card design | `GET/PUT /api/user/card-design` | ⬜ Planned |
+| Favourites | `GET/PUT /api/favourites` | ✅ Live |
+| My Feed | `GET /api/feed` | ✅ Live |
+| Reminders | `GET/POST /api/reminders` | ✅ Live |
+| Reminders | `DELETE /api/reminders/:eventId` | ✅ Live |
+| Card design | `GET/PUT /api/events/:id/card-design` | ✅ Live |
 
 ---
 
@@ -297,7 +298,7 @@ The usage log will be completed honestly at the end of development. All code gen
 
 ## Known Limitations and Remaining Work
 
-- **User features and UI are not yet implemented.** Phases 6–9 remain planned.
+- **User features are implemented (API layer).** Phases 6–8 (Favourites, My Feed, Reminders, Card Design) are complete. The frontend UI (Phase 9) is planned.
 - `lucide-react` and `framer-motion` have not been installed (needed for Phase 9 UI).
 - Next.js Edge Middleware (`src/middleware.ts`) for page-level route protection is not yet implemented.
 - `GET /api/admin/events` (admin event listing with inactive events) is planned but not yet implemented.
@@ -317,11 +318,8 @@ The usage log will be completed honestly at the end of development. All code gen
 - [ ] Admin account is seeded and login works
 - [ ] Public event listing, filtering, sorting, and pagination work
 - [ ] User registration and login work
-- [ ] Favourite categories persist across sessions
-- [ ] My Feed reflects favourite categories
-- [ ] Reminders persist in the database
-- [ ] Card designer preferences persist in the database
-- [ ] UI uses Claymorphism design system consistently
+- [x] All personalization APIs implemented (Favourites, Feed, Reminders, Card Design)
+- [ ] Claymorphism UI implemented
 - [ ] Application is responsive on mobile and desktop
 - [ ] `.env.example` is complete with all variable names (no values)
 - [ ] No secrets committed to the repository

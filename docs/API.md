@@ -1,6 +1,6 @@
 # API Reference — Community Events Board
 
-> **Status**: Phases 3–5 implemented. Authentication (Phase 3) and event management + public discovery (Phases 4–5) are live. User features (Phases 6–8) remain planned.
+> **Status**: Phases 3–8 implemented. Authentication (Phase 3), event management + public discovery (Phases 4–5), and all personalization APIs — favourites, my feed, reminders, and card design (Phases 6–8) — are live. Frontend UI (Phase 9) remains planned.
 
 ---
 
@@ -525,7 +525,9 @@ The `isActive` field is **required** and must be a boolean. Strings (`"false"`),
 
 ## User — Favourite Categories
 
-### `GET /api/user/favourites`
+> **[Implemented — Phase 6]** `src/app/api/favourites/route.ts`
+
+### `GET /api/favourites`
 
 🔒 Returns the authenticated user's saved favourite categories.
 
@@ -533,17 +535,22 @@ The `isActive` field is **required** and must be a boolean. Strings (`"false"`),
 
 ```json
 {
+  "success": true,
   "data": {
     "favouriteCategories": ["Music", "Food"]
   }
 }
 ```
 
+**Errors**: `401 UNAUTHORIZED`
+
 ---
 
-### `PUT /api/user/favourites`
+### `PUT /api/favourites`
 
 🔒 Replaces the user's entire favourite category list.
+
+Requires authentication and CSRF origin check. The user ID is always derived from the verified JWT — never from the request body. Only `favouriteCategories` is modified; no other user fields (email, role, passwordHash) can be changed through this endpoint.
 
 **Request body**
 
@@ -555,12 +562,15 @@ The `isActive` field is **required** and must be a boolean. Strings (`"false"`),
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
-| `favouriteCategories` | string[] | ✅ | Each item must be one of the five valid categories; empty array is allowed |
+| `favouriteCategories` | string[] | ✅ | Each item must be one of: `Music`, `Workshop`, `Food`, `Sports`, `Kids`; empty array `[]` is valid |
+
+Duplicate values in the submitted array are silently removed (deduplicated) before saving.
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "message": "Favourites updated.",
   "data": {
     "favouriteCategories": ["Music", "Kids"]
@@ -568,47 +578,106 @@ The `isActive` field is **required** and must be a boolean. Strings (`"false"`),
 }
 ```
 
-**Errors**: `400 VALIDATION_ERROR`, `401`
+**Errors**: `400 VALIDATION_ERROR` (invalid category value), `401 UNAUTHORIZED`, `403 FORBIDDEN` (CSRF check failed)
 
 ---
 
 ## User — My Feed
 
-### `GET /api/user/feed`
+> **[Implemented — Phase 6]** `src/app/api/feed/route.ts`
 
-🔒 Returns a paginated list of active events filtered to the user's favourite categories. If the user has no favourite categories saved, all active events are returned.
+### `GET /api/feed`
 
-Supports the same `page`, `limit`, `city`, `search`, and `sort` parameters as `GET /api/events`. The `category` parameter is ignored (categories come from the user's profile).
+🔒 Returns a paginated list of active, upcoming events filtered to the authenticated user's saved favourite categories.
 
-**Response 200**: same envelope as `GET /api/events`.
+The category filter is **always sourced from the user's stored preferences in the database**. Client-supplied `category` query parameters and user IDs are ignored.
+
+#### Empty preferences behaviour
+
+If the user has **no favourite categories saved** (`favouriteCategories: []`), the feed returns an empty result set (`data: []`) with HTTP 200 and correct pagination metadata. This is intentional — configure favourite categories first via `PUT /api/favourites`.
+
+#### Query parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `page` | integer ≥ 1 | `1` | Page number |
+| `limit` | integer 1–50 | `12` | Results per page |
+| `city` | string ≤ 100 chars | — | Case-insensitive substring match (same semantics as `GET /api/events`) |
+| `search` | string ≤ 200 chars | — | MongoDB text index search across `title` and `description` |
+
+The `category` parameter is silently ignored (categories come from the user's profile).
+
+Results are always sorted by `date` ascending (nearest upcoming first). Only `isActive: true` and `date > now` events are returned — inactive and past events are never included.
+
+**Response 200** — same envelope as `GET /api/events`
+
+```json
+{
+  "success": true,
+  "data": [ /* event objects */ ],
+  "pagination": {
+    "page": 1,
+    "limit": 12,
+    "total": 3,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
+  }
+}
+```
+
+**Errors**: `400 VALIDATION_ERROR` (invalid pagination params), `401 UNAUTHORIZED`
 
 ---
 
 ## User — Reminders
 
-### `GET /api/user/reminders`
+> **[Implemented — Phase 7]** `src/app/api/reminders/route.ts`, `src/app/api/reminders/[eventId]/route.ts`
 
-🔒 Returns all events for which the authenticated user has saved a reminder.
+### `GET /api/reminders`
+
+🔒 Returns all reminders saved by the authenticated user, each including the full event object.
+
+Reminders are returned most-recently-saved first. If an event associated with a reminder has been hard-deleted (orphan document), that reminder is excluded from the response.
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "data": [
     {
-      "reminderId": "64a1...",
-      "event": { /* full event object */ },
+      "reminderId": "64a1b2c3d4e5f6a7b8c9d0e1",
+      "event": {
+        "id": "64a1b2c3d4e5f6a7b8c9d0e2",
+        "title": "Coimbatore Jazz Evening",
+        "category": "Music",
+        "city": "Coimbatore",
+        "date": "2026-11-15T12:30:00.000Z",
+        "price": 299,
+        "imageUrl": "https://...",
+        "isActive": true,
+        "createdAt": "2026-10-01T10:00:00.000Z",
+        "updatedAt": "2026-10-01T10:00:00.000Z"
+      },
       "savedAt": "2026-10-10T14:30:00.000Z"
     }
   ]
 }
 ```
 
+**Errors**: `401 UNAUTHORIZED`
+
 ---
 
-### `POST /api/user/reminders`
+### `POST /api/reminders`
 
 🔒 Saves a reminder for an event.
+
+Requires authentication and CSRF origin check.
+
+- Only active, upcoming events (`isActive: true` and `date > now`) may be reminded. Past or inactive events return `404 NOT_FOUND`.
+- Duplicate reminders (same user + same event) return `409 CONFLICT` rather than creating a second document.
 
 **Request body**
 
@@ -616,89 +685,129 @@ Supports the same `page`, `limit`, `city`, `search`, and `sort` parameters as `G
 { "eventId": "64a1b2c3d4e5f6a7b8c9d0e1" }
 ```
 
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `eventId` | string | ✅ | Valid 24-character hex ObjectId |
+
 **Response 201**
 
 ```json
 {
+  "success": true,
   "message": "Reminder saved.",
   "data": {
-    "reminderId": "64a1...",
+    "reminderId": "64a1b2c3d4e5f6a7b8c9d0e3",
     "eventId": "64a1b2c3d4e5f6a7b8c9d0e1"
   }
 }
 ```
 
-**Errors**: `400 VALIDATION_ERROR`, `401`, `404 NOT_FOUND` (event not found), `409 CONFLICT` (already saved)
+**Errors**: `400 VALIDATION_ERROR` (malformed eventId), `401 UNAUTHORIZED`, `403 FORBIDDEN` (CSRF), `404 NOT_FOUND` (event missing, inactive, or past), `409 CONFLICT` (already saved)
 
 ---
 
-### `DELETE /api/user/reminders/:eventId`
+### `DELETE /api/reminders/:eventId`
 
-🔒 Removes a reminder for the specified event.
+🔒 Removes the authenticated user's reminder for the specified event.
 
-**Path parameter**: `eventId` — ObjectId of the event.
+Requires authentication and CSRF origin check.
+
+- Deletes only the reminder for the **authenticated user**. One user's reminder cannot be deleted by another user.
+- Does **not** delete or modify the event itself.
+
+**Path parameter**: `eventId` — 24-character hex MongoDB ObjectId of the event.
 
 **Response 200**
 
 ```json
-{ "message": "Reminder removed." }
+{ "success": true, "message": "Reminder removed." }
 ```
 
-**Errors**: `401`, `404 NOT_FOUND` (reminder not found)
+**Errors**: `401 UNAUTHORIZED`, `403 FORBIDDEN` (CSRF), `404 NOT_FOUND` (reminder does not exist for this user/event)
 
 ---
 
 ## User — Card Design
 
-### `GET /api/user/card-design`
+> **[Implemented — Phase 8]** `src/app/api/events/[id]/card-design/route.ts`
 
-🔒 Returns the authenticated user's saved card design. If no design has been saved, returns the default values.
+Card designs are stored **per user per event**. Each user can have one saved design for each event they customise.
+
+### `GET /api/events/:id/card-design`
+
+🔒 Returns the authenticated user's saved card design for the specified event. If no design has been saved, returns the documented default values.
+
+**Default design** (returned when no saved design exists):
+
+```json
+{
+  "theme": "pastel-cloud",
+  "stickers": []
+}
+```
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "data": {
+    "id": "64a1b2c3d4e5f6a7b8c9d0e4",
+    "eventId": "64a1b2c3d4e5f6a7b8c9d0e1",
     "theme": "pastel-cloud",
     "stickers": ["🎵", "🌟"],
-    "fontStyle": "rounded"
+    "createdAt": "2026-10-12T10:00:00.000Z",
+    "updatedAt": "2026-10-12T10:00:00.000Z"
   }
 }
 ```
 
+When no saved design exists, the response omits `id`, `eventId`, `createdAt`, and `updatedAt`.
+
+**Errors**: `401 UNAUTHORIZED`
+
 ---
 
-### `PUT /api/user/card-design`
+### `PUT /api/events/:id/card-design`
 
-🔒 Saves (or replaces) the user's card design. Uses upsert internally.
+🔒 Saves (or updates) the authenticated user's card design for the specified event. Uses upsert — calling this endpoint multiple times updates the same record.
+
+Requires authentication and CSRF origin check.
+
+- The `user` field is always sourced from the verified JWT — a user cannot overwrite another user's design.
+- Duplicate stickers in the submitted array are silently deduplicated before saving.
+
+**Path parameter**: `id` — 24-character hex MongoDB ObjectId of the event.
 
 **Request body**
 
 ```json
 {
   "theme": "sunset-peach",
-  "stickers": ["🎉", "🏆"],
-  "fontStyle": "serif"
+  "stickers": ["🎉", "🏆"]
 }
 ```
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
 | `theme` | string | ✅ | One of: `pastel-cloud`, `sunset-peach`, `mint-fresh`, `sky-blue`, `lilac-dream` |
-| `stickers` | string[] | ❌ | Max 3 items |
-| `fontStyle` | string | ❌ | One of: `rounded`, `serif`, `mono` |
+| `stickers` | string[] | ❌ | Max 3 items; each must be one of: `🎵`, `🌟`, `🎉`, `🏆`, `🍕`; empty array `[]` is valid; defaults to `[]` |
 
 **Response 200**
 
 ```json
 {
+  "success": true,
   "message": "Card design saved.",
   "data": {
+    "id": "64a1b2c3d4e5f6a7b8c9d0e4",
+    "eventId": "64a1b2c3d4e5f6a7b8c9d0e1",
     "theme": "sunset-peach",
     "stickers": ["🎉", "🏆"],
-    "fontStyle": "serif"
+    "createdAt": "2026-10-12T10:00:00.000Z",
+    "updatedAt": "2026-10-13T10:00:00.000Z"
   }
 }
 ```
 
-**Errors**: `400 VALIDATION_ERROR` (too many stickers, invalid theme), `401`
+**Errors**: `400 VALIDATION_ERROR` (invalid theme, invalid sticker, more than 3 stickers, malformed event ID), `401 UNAUTHORIZED`, `403 FORBIDDEN` (CSRF)
