@@ -77,7 +77,7 @@ export function SiteHeader() {
         {/* Logo / Brand */}
         <Link
           href="/"
-          aria-label="Community Events Board"
+          aria-label="Community Events Board — home"
           style={{
             display: "flex",
             alignItems: "center",
