@@ -42,6 +42,7 @@ import { connectDB } from "@/lib/db";
 import Event from "@/models/Event";
 import User from "@/models/User";
 import { EVENT_CATEGORIES } from "@/types";
+import { slugify } from "@/lib/slug";
 import {
   ok,
   created,
@@ -126,6 +127,7 @@ const createEventSchema = z.object({
 /** Serialises a saved Event document to the safe admin response shape. */
 function serializeEvent(doc: {
   _id: { toString(): string };
+  slug: string;
   title: string;
   description: string;
   category: string;
@@ -139,6 +141,7 @@ function serializeEvent(doc: {
 }): Record<string, unknown> {
   return {
     id: doc._id.toString(),
+    slug: doc.slug,
     title: doc.title,
     description: doc.description,
     category: doc.category,
@@ -150,6 +153,40 @@ function serializeEvent(doc: {
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
+}
+
+/**
+ * Generates a unique slug for an event title.
+ * Tries the base slug first; if that's taken, appends -2, -3, … until unique.
+ * Optionally excludes the current event's own ID from the uniqueness check
+ * (used when updating a title to avoid conflicting with itself).
+ */
+async function generateUniqueSlug(
+  title: string,
+  excludeId?: string
+): Promise<string> {
+  const base = slugify(title) || "event";
+
+  // Check if the base slug is available.
+  const baseQuery: Record<string, unknown> = { slug: base };
+  if (excludeId) baseQuery._id = { $ne: excludeId };
+  const baseExists = await Event.exists(baseQuery);
+
+  if (!baseExists) return base;
+
+  // Append numeric suffix until we find a free slot.
+  let suffix = 2;
+  while (suffix < 10_000) {
+    const candidate = `${base}-${suffix}`;
+    const candidateQuery: Record<string, unknown> = { slug: candidate };
+    if (excludeId) candidateQuery._id = { $ne: excludeId };
+    const exists = await Event.exists(candidateQuery);
+    if (!exists) return candidate;
+    suffix++;
+  }
+
+  // Extremely unlikely fallback: append timestamp millis.
+  return `${base}-${Date.now()}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +244,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         .limit(limit)
         .lean<{
           _id: { toString(): string };
+          slug: string;
           title: string;
           description: string;
           category: string;
@@ -286,10 +324,13 @@ export async function POST(request: Request): Promise<Response> {
       return forbidden("Admin access is required.");
     }
 
-    // Step 5: Create the event. `createdBy` is sourced from the verified DB
-    // user, never from the client request body.
+    // Step 5: Generate a unique slug from the title, then create the event.
+    // The slug is derived from the title but never includes the MongoDB ID.
+    const slug = await generateUniqueSlug(title);
+
     const event = await Event.create({
       title,
+      slug,
       description,
       category,
       city,

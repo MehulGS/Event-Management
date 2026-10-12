@@ -61,6 +61,11 @@ export type FontStyle = (typeof FONT_STYLES)[number];
 export interface IEventDocument {
   _id: Types.ObjectId;
   title: string;
+  /**
+   * URL-safe slug stored on the document.
+   * Used as the sole path segment in public event URLs: /events/<slug>
+   */
+  slug: string;
   description: string;
   category: EventCategory;
   city: string;

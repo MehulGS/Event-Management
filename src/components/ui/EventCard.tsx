@@ -5,11 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { MapPin, Calendar, Ticket } from "lucide-react";
 import { CategoryBadge } from "./CategoryBadge";
-import { buildEventSlug } from "@/lib/slug";
 import type { EventCategory } from "@/types";
 
 export interface EventCardData {
   id: string;
+  slug: string;
   title: string;
   description: string;
   category: EventCategory;
@@ -57,7 +57,6 @@ function formatEventDate(dateStr: string): string {
 export function EventCard({ event }: EventCardProps) {
   const formattedDate = formatEventDate(event.date);
   const formattedPrice = formatINR(event.price);
-  const eventSlug = buildEventSlug(event.title, event.id);
 
   return (
     <article
@@ -196,7 +195,7 @@ export function EventCard({ event }: EventCardProps) {
           </div>
 
           <Link
-            href={`/events/${eventSlug}`}
+            href={`/events/${event.slug}`}
             style={{
               fontSize: "var(--text-sm)",
               fontWeight: 600,

@@ -9,6 +9,8 @@ import type { EventCategory, CardTheme, CardSticker } from "@/types";
 /** A single public event as returned by GET /api/events or GET /api/events/:id */
 export interface PublicEvent {
   id: string;
+  /** URL-safe slug — the sole segment used in public event URLs (/events/<slug>). */
+  slug: string;
   title: string;
   description: string;
   category: EventCategory;

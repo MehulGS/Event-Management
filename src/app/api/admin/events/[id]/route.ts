@@ -28,6 +28,7 @@ import { connectDB } from "@/lib/db";
 import Event from "@/models/Event";
 import User from "@/models/User";
 import { EVENT_CATEGORIES } from "@/types";
+import { slugify } from "@/lib/slug";
 import {
   ok,
   badRequest,
@@ -109,6 +110,7 @@ function isValidObjectId(id: string): boolean {
 /** Serialises an Event document to the safe admin response shape. */
 function serializeEvent(doc: {
   _id: { toString(): string };
+  slug: string;
   title: string;
   description: string;
   category: string;
@@ -122,6 +124,7 @@ function serializeEvent(doc: {
 }): Record<string, unknown> {
   return {
     id: doc._id.toString(),
+    slug: doc.slug,
     title: doc.title,
     description: doc.description,
     category: doc.category,
@@ -133,6 +136,33 @@ function serializeEvent(doc: {
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
+}
+
+/**
+ * Generates a unique slug for an event title, excluding the current event
+ * from the uniqueness check so a no-op title edit doesn't conflict with itself.
+ */
+async function generateUniqueSlug(
+  title: string,
+  excludeId: string
+): Promise<string> {
+  const base = slugify(title) || "event";
+
+  const baseExists = await Event.exists({ slug: base, _id: { $ne: excludeId } });
+  if (!baseExists) return base;
+
+  let suffix = 2;
+  while (suffix < 10_000) {
+    const candidate = `${base}-${suffix}`;
+    const exists = await Event.exists({
+      slug: candidate,
+      _id: { $ne: excludeId },
+    });
+    if (!exists) return candidate;
+    suffix++;
+  }
+
+  return `${base}-${Date.now()}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,16 +223,26 @@ export async function PATCH(
       return forbidden("Admin access is required.");
     }
 
-    // Step 6: Apply the partial update.
+    // Step 6: If the title is changing, regenerate the slug.
+    // We preserve the existing slug when the slugified form of the new title
+    // matches the existing slug base, so existing links keep working.
+    const dbUpdates: Record<string, unknown> = { ...updates };
+    if (updates.title !== undefined) {
+      const newSlug = await generateUniqueSlug(updates.title, id);
+      dbUpdates.slug = newSlug;
+    }
+
+    // Step 7: Apply the partial update.
     const updatedEvent = await Event.findByIdAndUpdate(
       id,
-      { $set: updates },
+      { $set: dbUpdates },
       {
         new: true,       // Return the document after update.
         runValidators: true, // Run schema validators on the updated fields.
       }
     ).lean<{
       _id: { toString(): string };
+      slug: string;
       title: string;
       description: string;
       category: string;
@@ -272,6 +312,7 @@ export async function GET(
 
     const event = await Event.findById(id).lean<{
       _id: { toString(): string };
+      slug: string;
       title: string;
       description: string;
       category: string;

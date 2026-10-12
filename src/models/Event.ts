@@ -23,6 +23,13 @@ import {
 
 export interface IEvent extends Document {
   title: string;
+  /**
+   * URL-safe slug derived from the event title.
+   * Stored on the document so it can be indexed for fast O(log n) lookup.
+   * Must be unique across all events. Generated at creation time; updated
+   * carefully when the title changes (see admin PATCH handler).
+   */
+  slug: string;
   description: string;
   category: EventCategory;
   city: string;
@@ -47,6 +54,14 @@ const eventSchema = new Schema<IEvent>(
       trim: true,
       minlength: [3, "Title must be at least 3 characters."],
       maxlength: [120, "Title cannot exceed 120 characters."],
+    },
+    slug: {
+      type: String,
+      required: [true, "Slug is required."],
+      trim: true,
+      lowercase: true,
+      // slug is unique per event; ensured programmatically before save.
+      index: { unique: true },
     },
     description: {
       type: String,

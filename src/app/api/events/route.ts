@@ -77,6 +77,7 @@ function serializeEvent(
 ): Record<string, unknown> {
   return {
     id: doc._id.toString(),
+    slug: doc.slug,
     title: doc.title,
     description: doc.description,
     category: doc.category,

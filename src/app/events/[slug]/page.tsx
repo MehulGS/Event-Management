@@ -1,27 +1,23 @@
 /**
  * Public event detail page — /events/[slug]
  *
- * URL format: /events/<title-slug>-<24-char-objectid>
- * Example:    /events/coimbatore-jazz-evening-6acd20dbf9be593f89b0e8dd
+ * URL format: /events/<slug>
+ * Example:    /events/coimbatore-jazz-evening
  *
- * The MongoDB ObjectId is always the last 24 characters of the slug segment.
- * The slug prefix is derived from the event title for readability; it is not
- * used for database lookup (only the ID is). This means:
- *  - Old links with a stale slug continue to resolve (canonical redirect issued).
- *  - Bare ObjectId URLs (/events/<id>) also resolve via redirect.
- *  - Invalid or unresolvable segments return the friendly 404 page.
+ * The slug is stored on the event document and is the sole identifier in the
+ * public URL. The MongoDB ObjectId is resolved server-side and never appears
+ * in the browser address bar.
  *
  * States handled:
- *  - Found + canonical slug → full detail layout
- *  - Found + stale slug     → 301 redirect to canonical URL
- *  - Not found / inactive / past → 404-style "not found" page
- *  - API error → friendly error with back link
+ *  - Found + active/upcoming  → full detail layout
+ *  - Not found / inactive / past → 404 "not found" page
+ *  - Invalid slug format      → 404 "not found" page
  */
 
 export const instant = false;
 
 import { connection } from "next/server";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import React from "react";
 import type { Metadata } from "next";
@@ -44,17 +40,22 @@ import {
 } from "@/components/EventDetailClientSection";
 import type { EventDetailResponse, PublicEvent } from "@/lib/api-types";
 import type { EventCategory } from "@/types";
-import { extractIdFromSlug, buildEventSlug, isCanonicalSlug } from "@/lib/slug";
+import { isValidSlug } from "@/lib/slug";
 
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function fetchEvent(id: string): Promise<PublicEvent | null> {
+/**
+ * Fetches an event by its URL slug.
+ * Uses the dedicated slug-lookup endpoint so the MongoDB ID never travels
+ * through the URL.
+ */
+async function fetchEventBySlug(slug: string): Promise<PublicEvent | null> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   try {
-    const res = await fetch(`${baseUrl}/api/events/${id}`, {
+    const res = await fetch(`${baseUrl}/api/events/slug/${encodeURIComponent(slug)}`, {
       cache: "no-store",
     });
 
@@ -80,10 +81,9 @@ export async function generateMetadata({
   await connection();
   const { slug } = await params;
 
-  const id = extractIdFromSlug(slug);
-  if (!id) return { title: "Event not found" };
+  if (!isValidSlug(slug)) return { title: "Event not found" };
 
-  const event = await fetchEvent(id);
+  const event = await fetchEventBySlug(slug);
   if (!event) return { title: "Event not found" };
 
   return {
@@ -136,22 +136,15 @@ export default async function EventDetailPage({
   await connection();
   const { slug } = await params;
 
-  // Extract the MongoDB ObjectId from the slug segment.
-  const id = extractIdFromSlug(slug);
-  if (!id) {
+  // Validate slug format before making any network/DB call.
+  if (!isValidSlug(slug)) {
     notFound();
   }
 
-  const event = await fetchEvent(id);
+  const event = await fetchEventBySlug(slug);
 
   if (!event) {
     notFound();
-  }
-
-  // Canonical slug check — redirect if the slug is stale or bare-ID.
-  const canonical = buildEventSlug(event.title, event.id);
-  if (!isCanonicalSlug(slug, event.title, event.id)) {
-    redirect(`/events/${canonical}`);
   }
 
   const formattedDate = formatEventDate(event.date);

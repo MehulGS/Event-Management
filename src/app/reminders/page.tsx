@@ -17,13 +17,13 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorMessage } from "@/components/ui/ErrorMessage";
-import { buildEventSlug } from "@/lib/slug";
 import type { EventCategory } from "@/types";
 
 interface ReminderItem {
   reminderId: string;
   event: {
     id: string;
+    slug: string;
     title: string;
     description: string;
     category: string;
@@ -356,7 +356,7 @@ export default function RemindersPage() {
                       }}
                     >
                       <Link
-                        href={`/events/${buildEventSlug(event.title, event.id)}`}
+                        href={`/events/${event.slug}`}
                         style={{
                           color: "inherit",
                           textDecoration: "none",
