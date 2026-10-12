@@ -4,7 +4,7 @@
  * No Mongoose or server-only imports — safe for client components.
  */
 
-import type { EventCategory } from "@/types";
+import type { EventCategory, CardTheme, CardSticker } from "@/types";
 
 /** A single public event as returned by GET /api/events or GET /api/events/:id */
 export interface PublicEvent {
@@ -68,4 +68,62 @@ export function buildEventsQueryString(params: EventsQueryParams): string {
 
   const str = qs.toString();
   return str ? `?${str}` : "";
+}
+
+/** Shape of GET /api/auth/me response */
+export interface AuthMeResponse {
+  success: true;
+  user: {
+    id: string;
+    email: string;
+    role: "admin" | "user";
+    favouriteCategories: EventCategory[];
+    createdAt: string;
+  };
+}
+
+/** Shape of GET /api/favourites response */
+export interface FavouritesResponse {
+  success: true;
+  data: {
+    favouriteCategories: EventCategory[];
+  };
+}
+
+/** Shape of GET /api/reminders response item */
+export interface ReminderItem {
+  reminderId: string;
+  event: PublicEvent;
+  savedAt: string;
+}
+
+/** Shape of GET /api/reminders response */
+export interface RemindersResponse {
+  success: true;
+  data: ReminderItem[];
+}
+
+/** Shape of GET /api/events/:id/card-design response */
+export interface CardDesignResponse {
+  success: true;
+  data: {
+    id?: string;
+    eventId?: string;
+    theme: CardTheme;
+    stickers: CardSticker[];
+    createdAt?: string;
+    updatedAt?: string;
+  };
+}
+
+/** Admin event (includes inactive events) */
+export interface AdminEvent extends PublicEvent {
+  description: string;
+}
+
+/** Shape of GET /api/admin/events response */
+export interface AdminEventsResponse {
+  success: true;
+  data: AdminEvent[];
+  pagination: PaginationMeta;
 }

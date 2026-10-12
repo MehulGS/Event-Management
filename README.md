@@ -43,9 +43,8 @@ The admin account is provisioned via `npm run seed-admin` using environment vari
 - Do **not** commit credentials to the repository.
 - Share the `ADMIN_EMAIL` and `ADMIN_PASSWORD` values securely (e.g. via an encrypted message, a private shared document, or Vercel environment variable access).
 - The evaluator runs `npm run seed-admin` locally with those values to provision the admin account.
-
-Once provisioned, log in at: `POST /api/auth/login` with the configured credentials.
-The admin dashboard UI is planned for a future phase — admin API endpoints are live and testable via any HTTP client.
+- Then navigate to `/login` in the browser and log in with the admin credentials.
+- After login, the header automatically shows admin links: **Dashboard** and **Manage Events**.
 
 ---
 
@@ -54,8 +53,8 @@ The admin dashboard UI is planned for a future phase — admin API endpoints are
 | Feature | Status |
 |---|---|
 | Public event listing with category, city, and keyword filters | ✅ Implemented |
-| Pagination | ✅ Implemented |
-| Event detail view (API) | ✅ Implemented |
+| URL-synced pagination | ✅ Implemented |
+| Event detail view | ✅ Implemented |
 | User registration (`POST /api/auth/signup`) | ✅ Implemented |
 | User login (`POST /api/auth/login`) | ✅ Implemented |
 | JWT HTTP-only cookie auth | ✅ Implemented |
@@ -63,9 +62,10 @@ The admin dashboard UI is planned for a future phase — admin API endpoints are
 | Logout (`POST /api/auth/logout`) | ✅ Implemented |
 | Admin provisioning (`npm run seed-admin`) | ✅ Implemented |
 | Admin identity test (`GET /api/admin/me`) | ✅ Implemented |
+| Admin event listing (`GET /api/admin/events`) | ✅ Implemented |
 | Admin event creation (`POST /api/admin/events`) | ✅ Implemented |
 | Admin event editing (`PATCH /api/admin/events/:id`) | ✅ Implemented |
-| Admin event activation/deactivation (`PATCH /api/admin/events/:id/status`) | ✅ Implemented |
+| Admin event activation/deactivation | ✅ Implemented |
 | Favourite category selection (API) | ✅ Implemented |
 | Personalised My Feed (API) | ✅ Implemented |
 | Persistent reminders — database-backed (API) | ✅ Implemented |
@@ -74,16 +74,22 @@ The admin dashboard UI is planned for a future phase — admin API endpoints are
 | Landing page (`/`) with featured events | ✅ Implemented |
 | Public events page (`/events`) with filters and pagination | ✅ Implemented |
 | Responsive layout (mobile and desktop) | ✅ Implemented |
-| Login page UI | ⬜ Planned |
-| Signup page UI | ⬜ Planned |
-| Admin dashboard UI | ⬜ Planned |
-| My Feed page UI | ⬜ Planned |
-| Reminders page UI | ⬜ Planned |
-| Card designer UI | ⬜ Planned |
+| **Login page UI (`/login`)** | ✅ Implemented |
+| **Signup page UI (`/signup`)** | ✅ Implemented |
+| **Authentication-aware navigation (SiteHeader)** | ✅ Implemented |
+| **Edge middleware for route protection** | ✅ Implemented |
+| **Admin dashboard UI (`/admin`)** | ✅ Implemented |
+| **Admin create event UI (`/admin/events/new`)** | ✅ Implemented |
+| **Admin edit event UI (`/admin/events/[id]/edit`)** | ✅ Implemented |
+| **Favourite categories UI (`/favorites`)** | ✅ Implemented |
+| **My Feed UI (`/feed`)** | ✅ Implemented |
+| **My Reminders UI (`/reminders`)** | ✅ Implemented |
+| **Card Designer UI (on `/events/[id]`)** | ✅ Implemented |
+| **Reminder button on event detail page** | ✅ Implemented |
 
-**Phases 1–9a (Backend + Design System + Landing + Events pages)** are complete. Remaining UI phases are planned.
+**All backend and frontend features are now complete.**
 
-> **Event seeding note:** The sample-event seed script (`scripts/seed-events.ts`) has been removed. The public events listing will be empty until an administrator creates events via the API (`POST /api/admin/events`) or the database is populated through an explicitly documented process. No actual event documents in MongoDB are affected — only the script file and its npm command have been removed.
+> **Event seeding note:** The sample-event seed script has been removed. The public events listing will be empty until an administrator creates events via the admin dashboard (`/admin`) or the API (`POST /api/admin/events`).
 
 ---
 
@@ -94,11 +100,11 @@ The admin dashboard UI is planned for a future phase — admin API endpoints are
 - **Styling**: Tailwind CSS v4 + CSS custom properties (Claymorphism tokens)
 - **Database**: MongoDB Atlas (cloud-hosted)
 - **ODM**: Mongoose 9
-- **Authentication**: JSON Web Tokens (`jsonwebtoken`)
+- **Authentication**: JSON Web Tokens (`jsonwebtoken`) in `HttpOnly` cookies
 - **Password hashing**: `bcryptjs`
 - **Validation**: Zod
 - **Icons**: Lucide React
-- **Animations**: Framer Motion *(installed, available for future phases)*
+- **Animations**: Framer Motion *(installed, available)*
 - **Build tool**: Turbopack (via Next.js)
 
 ---
@@ -136,7 +142,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The public events listing will be empty until events are created via `POST /api/admin/events` using the provisioned admin account.
+The public events listing will be empty until events are created via the admin dashboard at `/admin` or via `POST /api/admin/events`.
 
 ---
 
@@ -179,28 +185,24 @@ npm run lint       # Run ESLint
 npm run seed-admin # Provision the admin account (idempotent, safe to re-run)
 ```
 
-> **Note:** The sample-event seed script (`npm run seed`) has been removed. The public listing will be empty until events are created by the admin through the API.
+> **Note:** The sample-event seed script (`npm run seed`) has been removed. The public listing will be empty until events are created by the admin through the dashboard.
 
 ---
 
 ## Admin Provisioning
 
-The admin account is created by running `npm run seed-admin`, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your environment file. **There is no public admin registration endpoint** — the signup API always assigns `role: "user"`.
+The admin account is created by running `npm run seed-admin`, which reads credentials from `ADMIN_EMAIL` and `ADMIN_PASSWORD` in your environment file.
 
 ```bash
 # Ensure ADMIN_EMAIL and ADMIN_PASSWORD are set in .env.local, then:
 npm run seed-admin
 ```
 
-**What the script does:**
-- Creates the admin account if it does not exist.
-- Leaves it unchanged if it already exists with the correct password hash.
-- Updates the password hash if `ADMIN_PASSWORD` has changed (credential rotation).
-- **Refuses to promote an existing normal user.** If the email already belongs to a `user`-role account, the script exits with an error.
+Once provisioned, navigate to `/login` and sign in with the admin credentials. The header will automatically show **Dashboard** and **Manage Events** links.
 
-**Changing the admin password:** Update `ADMIN_PASSWORD` in your environment and re-run `npm run seed-admin`. The admin must log in again after the change.
+**Changing the admin password:** Update `ADMIN_PASSWORD` in your environment and re-run `npm run seed-admin`.
 
-**Sharing credentials with an evaluator:** Share `ADMIN_EMAIL` and `ADMIN_PASSWORD` values via a secure channel (encrypted message, private shared document, or Vercel environment variable dashboard). Never commit actual passwords to the repository.
+**Sharing credentials with an evaluator:** Share `ADMIN_EMAIL` and `ADMIN_PASSWORD` via a secure channel. Never commit actual passwords to the repository.
 
 ---
 
@@ -218,6 +220,7 @@ See [`docs/API.md`](docs/API.md) for the full REST API contract.
 | Auth | `GET /api/auth/me` | ✅ Live |
 | Auth | `POST /api/auth/logout` | ✅ Live |
 | Admin test | `GET /api/admin/me` | ✅ Live |
+| Admin events list | `GET /api/admin/events` | ✅ Live |
 | Public events | `GET /api/events` | ✅ Live |
 | Public events | `GET /api/events/:id` | ✅ Live |
 | Admin events | `POST /api/admin/events` | ✅ Live |
@@ -243,31 +246,41 @@ Collections: `events`, `users`, `reminders`, `carddesigns`.
 
 - Passwords are hashed with `bcryptjs` (saltRounds = 12). Plain-text passwords are never stored or logged.
 - JWTs are signed with a secret stored only in environment variables.
-- Tokens are delivered in `HttpOnly`, `SameSite=Strict` cookies (also `Secure` in production), preventing JavaScript access.
+- Tokens are delivered in `HttpOnly`, `SameSite=Strict` cookies, preventing JavaScript access.
 - All API inputs are validated with Zod before reaching the database.
 - The `role` field is never accepted from the client — signup always assigns `"user"` server-side.
 - Admin is provisioned via `npm run seed-admin` only; no public endpoint can create an admin.
 - All state-changing auth endpoints perform an `Origin` header check as a CSRF defence.
 - Admin-sensitive endpoints re-read the user's role from the database rather than trusting the JWT claim.
+- Edge middleware redirects unauthenticated requests away from `/feed`, `/favorites`, `/reminders`, and `/admin`.
+- The admin UI performs an additional client-side role check and redirects non-admins.
 - The `.env.local` file is git-ignored. `.env.example` contains no real credentials.
 
 ---
 
 ## Testing Instructions
 
-### Manual API testing
+### Evaluator flow
 
-Use any HTTP client (Postman, Bruno, curl) to exercise the API endpoints. For browser-based testing, the `token` cookie is set automatically by the login endpoint.
+1. Copy `.env.example` to `.env.local` and fill in all variables.
+2. Run `npm run seed-admin` to provision the admin account.
+3. Run `npm run dev` and open [http://localhost:3000](http://localhost:3000).
 
-```
-POST /api/auth/signup    { "email": "...", "password": "..." }
-POST /api/auth/login     { "email": "...", "password": "..." }
-GET  /api/auth/me        (requires token cookie)
-POST /api/auth/logout
-GET  /api/admin/me       (requires admin token cookie)
-GET  /api/events         (public; supports ?category=Music&city=...&search=...&page=1&limit=12)
-POST /api/admin/events   (requires admin token)
-```
+### Pages to verify
+
+| Page | Path | Notes |
+|---|---|---|
+| Landing | `/` | Public; featured events shown |
+| Events listing | `/events` | Filters, pagination |
+| Event detail | `/events/:id` | Reminder button + Card Designer |
+| Login | `/login` | Email/password; show/hide password |
+| Signup | `/signup` | Includes confirm-password validation |
+| My Feed | `/feed` | Requires login; shows events by favourite category |
+| Favourites | `/favorites` | Select category preferences |
+| My Reminders | `/reminders` | View and remove saved reminders |
+| Admin Dashboard | `/admin` | Admin only; event list with status controls |
+| Create Event | `/admin/events/new` | Admin only |
+| Edit Event | `/admin/events/:id/edit` | Admin only |
 
 ### Running checks
 
@@ -283,22 +296,15 @@ npm run build      # Production build
 
 ### 1. How is the database structured, and what design decisions were made?
 
-The application uses four MongoDB collections: `events`, `users`, `reminders`, and `carddesigns`. Reminders are stored as a separate collection (rather than embedded in the user document) to avoid unbounded array growth and allow atomic per-reminder operations. Favourite categories are stored as a small string array on the user document because there are only five possible values. Each collection has targeted indexes to support its primary query pattern (see `docs/DATABASE.md`).
+Four MongoDB collections: `events`, `users`, `reminders`, `carddesigns`. Reminders are stored as a separate collection to avoid unbounded array growth. Favourite categories are an array on the user document (only 5 possible values). Card designs are per-user per-event (compound unique index on `{user, event}`).
 
-### 2. How does the combined filter query work, and which index supports it?
+### 2. How does the combined filter query work?
 
-The public event listing (`GET /api/events`) builds a MongoDB filter with AND logic:
+The public listing builds an AND filter: `isActive: true`, `date > now`, optional `category` (exact match), `city` (case-insensitive regex), `search` (MongoDB text index). Results are always sorted by `date` ascending.
 
-1. **Base filter** — always applied: `{ isActive: true, date: { $gt: now } }`.
-2. **`category`** — exact case-sensitive enum match.
-3. **`city`** — case-insensitive substring regex (`/escaped_input/i`).
-4. **`search`** — MongoDB `$text` query on the text index of `title` and `description`.
+### 3. How are passwords stored and how are admin pages protected?
 
-Results are sorted by `date` ascending (nearest upcoming first). Text relevance score is not used as a sort key.
-
-### 3. How are passwords stored, and how are the admin page and API protected?
-
-Passwords are hashed with `bcryptjs` at saltRounds = 12. The admin account is created exclusively via `npm run seed-admin`. Each protected API route calls `getAuthFromRequest()` to verify the JWT, and admin endpoints re-read the role from the database rather than trusting the JWT claim.
+Passwords use `bcryptjs` saltRounds=12. Admin is provisioned via `npm run seed-admin` only. Each admin API route re-reads the role from the database. The UI enforces a client-side role check in the admin layout, backed by the Edge middleware cookie check.
 
 ---
 
@@ -312,16 +318,13 @@ All code generated with AI assistance is reviewed and understood before being co
 
 ## Known Limitations and Remaining Work
 
-- **Frontend UI phases remaining:** Login, Signup, Admin Dashboard, My Feed, Reminders, and Card Designer pages are not yet implemented.
-- Next.js Edge Middleware (`src/middleware.ts`) for page-level route protection is not yet implemented.
-- `GET /api/admin/events` (admin event listing with inactive events) is planned but not implemented.
+- Next.js 16 deprecates `middleware.ts` in favour of `proxy.ts` — a codemod migration is available via `npx @next/codemod@canary middleware-to-proxy .`.
 - JWTs are stateless; no server-side revocation mechanism.
-- No rate limiting is currently implemented; add before production deployment.
+- No rate limiting is implemented; add before production deployment.
 - Image upload is not supported; `imageUrl` accepts an external URL string only.
-- City filter uses a contains regex which does not use a database index range scan. Acceptable at current scale.
 - Full WCAG compliance requires manual testing with assistive technologies.
-- The events listing will be empty until events are created via the admin API.
-- The sample-event seed script has been removed to reflect a production-ready setup.
+- The events listing will be empty until events are created via the admin dashboard.
+- The sample-event seed script has been removed.
 
 ---
 
@@ -330,18 +333,30 @@ All code generated with AI assistance is reviewed and understood before being co
 - [x] MongoDB Atlas connected and models implemented
 - [x] Admin provisioning via `npm run seed-admin`
 - [x] Public event listing API with filters and pagination
-- [x] User registration and login (API)
+- [x] User registration and login (API + UI)
 - [x] All personalization APIs implemented (Favourites, Feed, Reminders, Card Design)
 - [x] Claymorphism design system (CSS tokens, shared components)
 - [x] Landing page with featured events
 - [x] Public events page with filters, pagination, loading/empty/error states
 - [x] Responsive design (mobile and desktop)
+- [x] Login page UI (`/login`)
+- [x] Signup page UI (`/signup`)
+- [x] Authentication-aware navigation header
+- [x] Edge middleware for route protection
+- [x] Admin dashboard UI (`/admin`) — event list, status controls
+- [x] Admin create event UI (`/admin/events/new`)
+- [x] Admin edit event UI (`/admin/events/[id]/edit`)
+- [x] Favourite categories UI (`/favorites`)
+- [x] My Feed UI (`/feed`)
+- [x] My Reminders UI (`/reminders`)
+- [x] Card Designer UI (on `/events/[id]`)
+- [x] Reminder button on event detail page
+- [x] `GET /api/admin/events` endpoint (was missing; now implemented)
 - [x] `.env.example` complete with all variable names (no values)
 - [x] No secrets committed to the repository
-- [x] Sample-event seeder removed; admin provisioning retained
-- [ ] Auth UI pages (login, signup) — planned
-- [ ] Admin dashboard UI — planned
-- [ ] My Feed, Reminders, Card Designer UI — planned
+- [x] TypeScript check passes (source files clean)
+- [x] ESLint passes (0 errors)
+- [x] Production build succeeds
 - [ ] `docs/AI-USAGE.md` usage log completed
 - [ ] Deployment URL filled in
 - [ ] Admin credentials shared securely with evaluator

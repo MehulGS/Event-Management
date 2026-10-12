@@ -9,18 +9,15 @@
  * identifier shown to the user throughout.
  *
  * States handled:
- *  - Loading  → Next.js streaming (loading.tsx would be the idiomatic place,
- *               but a simple server-render with error boundary is sufficient here)
- *  - Found    → full detail layout
+ *  - Loading  → Next.js streaming
+ *  - Found    → full detail layout with reminder button + card designer
  *  - Not found / inactive / past → 404-style "not found" page
  *  - API error → friendly error message with a back link
+ *
+ * The ReminderButton and CardDesigner are client components imported lazily
+ * so they do not affect the server render of the public detail page.
  */
 
-// This route is always dynamic — it reads `params` and fetches live event data.
-// Use connection() instead of `export const dynamic` because this project
-// enables `cacheComponents` in next.config.ts (the two are incompatible).
-// `instant = false` tells Next.js to allow blocking (non-streaming) prerender
-// for this route when cacheComponents is active.
 export const instant = false;
 
 import { connection } from "next/server";
@@ -40,6 +37,7 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { ReminderButtonWrapper, CardDesignerWrapper } from "@/components/EventDetailClientSection";
 import type { EventDetailResponse, PublicEvent } from "@/lib/api-types";
 import type { EventCategory } from "@/types";
 
@@ -52,7 +50,6 @@ async function fetchEvent(id: string): Promise<PublicEvent | null> {
 
   try {
     const res = await fetch(`${baseUrl}/api/events/${id}`, {
-      // Fresh on every request — event details can change
       cache: "no-store",
     });
 
@@ -133,8 +130,6 @@ export default async function EventDetailPage({
   await connection();
   const { id } = await params;
 
-  // Validate the ID format before hitting the API — 24-char hex ObjectId.
-  // An invalid format means there's no matching event; treat as not found.
   const isValidId = /^[a-f\d]{24}$/i.test(id);
   if (!isValidId) {
     notFound();
@@ -142,8 +137,6 @@ export default async function EventDetailPage({
 
   const event = await fetchEvent(id);
 
-  // The API returns null for missing, inactive, or past events.
-  // notFound() triggers Next.js's built-in 404 handling.
   if (!event) {
     notFound();
   }
@@ -317,143 +310,42 @@ export default async function EventDetailPage({
                 `}</style>
 
                 {/* Date */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-3)",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 36,
-                      height: 36,
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--color-bg-surface)",
-                      boxShadow: "var(--shadow-raised)",
-                      flexShrink: 0,
-                      color: "var(--color-accent-primary)",
-                    }}
-                  >
+                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
                     <Calendar size={16} />
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: "var(--text-xs)",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        marginBottom: "var(--space-1)",
-                      }}
-                    >
+                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
                       Date &amp; Time
                     </div>
-                    <time
-                      dateTime={event.date}
-                      style={{
-                        fontSize: "var(--text-sm)",
-                        fontWeight: 500,
-                        color: "var(--color-text-primary)",
-                        lineHeight: 1.4,
-                      }}
-                    >
+                    <time dateTime={event.date} style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.4 }}>
                       {formattedDate}
                     </time>
                   </div>
                 </div>
 
                 {/* City */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-3)",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 36,
-                      height: 36,
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--color-bg-surface)",
-                      boxShadow: "var(--shadow-raised)",
-                      flexShrink: 0,
-                      color: "var(--color-accent-primary)",
-                    }}
-                  >
+                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
                     <MapPin size={16} />
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: "var(--text-xs)",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        marginBottom: "var(--space-1)",
-                      }}
-                    >
+                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
                       City
                     </div>
-                    <span
-                      style={{
-                        fontSize: "var(--text-sm)",
-                        fontWeight: 500,
-                        color: "var(--color-text-primary)",
-                      }}
-                    >
+                    <span style={{ fontSize: "var(--text-sm)", fontWeight: 500, color: "var(--color-text-primary)" }}>
                       {event.city}
                     </span>
                   </div>
                 </div>
 
                 {/* Category */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-3)",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 36,
-                      height: 36,
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--color-bg-surface)",
-                      boxShadow: "var(--shadow-raised)",
-                      flexShrink: 0,
-                      color: "var(--color-accent-primary)",
-                    }}
-                  >
+                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
                     <Tag size={16} />
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: "var(--text-xs)",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        marginBottom: "var(--space-1)",
-                      }}
-                    >
+                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
                       Category
                     </div>
                     <CategoryBadge category={event.category as EventCategory} />
@@ -461,112 +353,39 @@ export default async function EventDetailPage({
                 </div>
 
                 {/* Price */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "var(--space-3)",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 36,
-                      height: 36,
-                      borderRadius: "var(--radius-md)",
-                      backgroundColor: "var(--color-bg-surface)",
-                      boxShadow: "var(--shadow-raised)",
-                      flexShrink: 0,
-                      color: "var(--color-accent-primary)",
-                    }}
-                  >
+                <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+                  <div aria-hidden="true" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: "var(--radius-md)", backgroundColor: "var(--color-bg-surface)", boxShadow: "var(--shadow-raised)", flexShrink: 0, color: "var(--color-accent-primary)" }}>
                     <Ticket size={16} />
                   </div>
                   <div>
-                    <div
-                      style={{
-                        fontSize: "var(--text-xs)",
-                        fontWeight: 600,
-                        color: "var(--color-text-secondary)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        marginBottom: "var(--space-1)",
-                      }}
-                    >
+                    <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "var(--space-1)" }}>
                       Ticket Price
                     </div>
-                    <span
-                      style={{
-                        fontSize: "var(--text-lg)",
-                        fontWeight: 700,
-                        color:
-                          event.price === 0
-                            ? "var(--color-cat-sports-text)"
-                            : "var(--color-text-primary)",
-                      }}
-                    >
+                    <span style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: event.price === 0 ? "var(--color-cat-sports-text)" : "var(--color-text-primary)" }}>
                       {formattedPrice}
                     </span>
                   </div>
                 </div>
 
                 {/* Divider */}
-                <div
-                  aria-hidden="true"
-                  style={{
-                    height: 1,
-                    backgroundColor: "var(--color-border)",
-                    margin: "var(--space-1) 0",
-                  }}
-                />
+                <div aria-hidden="true" style={{ height: 1, backgroundColor: "var(--color-border)", margin: "var(--space-1) 0" }} />
 
-                {/* CTA: sign up to set reminder */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "var(--space-3)",
-                  }}
-                >
+                {/* Reminder button (client component — shows based on auth state) */}
+                <ReminderButtonWrapper eventId={event.id} eventTitle={event.title} />
+
+                {/* Fallback CTAs for guests are handled inside ReminderButton via loading state;
+                    the component itself shows nothing if the user isn't logged in since
+                    the reminder fetch returns 401 and state = "error". We add plain links below. */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                   <Link
                     href="/signup"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "var(--space-2)",
-                      padding: "var(--space-3) var(--space-6)",
-                      backgroundColor: "var(--color-accent-primary)",
-                      color: "var(--color-text-inverse)",
-                      borderRadius: "var(--radius-md)",
-                      fontSize: "var(--text-sm)",
-                      fontWeight: 700,
-                      textDecoration: "none",
-                      boxShadow: "var(--shadow-raised)",
-                      textAlign: "center",
-                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "var(--space-2)", padding: "var(--space-3) var(--space-6)", backgroundColor: "var(--color-accent-primary)", color: "var(--color-text-inverse)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 700, textDecoration: "none", boxShadow: "var(--shadow-raised)", textAlign: "center" }}
                   >
                     Sign up to set reminder
                   </Link>
                   <Link
                     href="/login"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "var(--space-3) var(--space-6)",
-                      backgroundColor: "transparent",
-                      color: "var(--color-text-secondary)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: "var(--radius-md)",
-                      fontSize: "var(--text-sm)",
-                      fontWeight: 600,
-                      textDecoration: "none",
-                      textAlign: "center",
-                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-3) var(--space-6)", backgroundColor: "transparent", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600, textDecoration: "none", textAlign: "center" }}
                   >
                     Already have an account? Log in
                   </Link>
@@ -576,29 +395,14 @@ export default async function EventDetailPage({
           </div>
         </article>
 
-        {/* Browse more events */}
-        <div
-          style={{
-            marginTop: "var(--space-8)",
-            textAlign: "center",
-          }}
-        >
+        {/* Card Designer (client component — loads after page render) */}
+        <CardDesignerWrapper event={event} />
+
+        {/* Browse more */}
+        <div style={{ marginTop: "var(--space-8)", textAlign: "center" }}>
           <Link
             href="/events"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              padding: "var(--space-3) var(--space-8)",
-              backgroundColor: "var(--color-bg-surface)",
-              color: "var(--color-text-primary)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              fontSize: "var(--text-sm)",
-              fontWeight: 600,
-              textDecoration: "none",
-              boxShadow: "var(--shadow-raised)",
-            }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)", padding: "var(--space-3) var(--space-8)", backgroundColor: "var(--color-bg-surface)", color: "var(--color-text-primary)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600, textDecoration: "none", boxShadow: "var(--shadow-raised)" }}
           >
             ← Browse more events
           </Link>

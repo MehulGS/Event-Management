@@ -1,16 +1,25 @@
 /**
+ * GET /api/admin/events
  * POST /api/admin/events
  *
+ * Admin-only endpoints for event management.
+ *
+ * ## GET
+ * Returns ALL events (active and inactive) for the admin dashboard.
+ * Supports pagination via `page` and `limit` query parameters.
+ * Returns most-recently-created events first (createdAt desc).
+ *
+ * ## POST
  * Admin-only endpoint to create a new community event.
  *
  * ## Authorization
- * Requires a valid JWT (cookie or Bearer header) whose corresponding database
- * user has `role: "admin"`. The role is re-read from the database — never
- * trusted from the JWT claim alone.
+ * Both methods require a valid JWT whose corresponding database user has
+ * `role: "admin"`. The role is re-read from the database — never trusted
+ * from the JWT claim alone.
  *
- * ## CSRF protection
- * The same-origin Origin header check (`isSameOrigin`) is enforced for this
- * state-changing mutation, consistent with all other admin mutations.
+ * ## CSRF protection (POST only)
+ * The same-origin Origin header check (`isSameOrigin`) is enforced for
+ * state-changing mutations, consistent with all other admin mutations.
  *
  * ## Mass assignment prevention
  * Only the fields listed in `createEventSchema` are accepted. The `createdBy`
@@ -28,11 +37,13 @@
  */
 
 import { z } from "zod";
+import { NextRequest } from "next/server";
 import { connectDB } from "@/lib/db";
 import Event from "@/models/Event";
 import User from "@/models/User";
 import { EVENT_CATEGORIES } from "@/types";
 import {
+  ok,
   created,
   badRequest,
   unauthorized,
@@ -41,6 +52,14 @@ import {
 } from "@/lib/api-response";
 import { getAuthFromRequest } from "@/lib/auth";
 import { isSameOrigin } from "@/lib/csrf";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Validation schema
@@ -130,7 +149,94 @@ function serializeEvent(doc: {
 }
 
 // ---------------------------------------------------------------------------
-// Route handler
+// GET /api/admin/events
+// ---------------------------------------------------------------------------
+
+export async function GET(request: NextRequest): Promise<Response> {
+  // Verify authentication.
+  const decoded = getAuthFromRequest(request);
+  if (!decoded) {
+    return unauthorized("Authentication is required.");
+  }
+
+  const { searchParams } = request.nextUrl;
+
+  // Parse pagination params.
+  const rawPage = searchParams.get("page") ?? String(DEFAULT_PAGE);
+  const page = parseInt(rawPage, 10);
+  if (!Number.isInteger(page) || page < 1 || String(page) !== rawPage) {
+    return badRequest("`page` must be a positive integer.");
+  }
+
+  const rawLimit = searchParams.get("limit") ?? String(DEFAULT_LIMIT);
+  const limit = parseInt(rawLimit, 10);
+  if (
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_LIMIT ||
+    String(limit) !== rawLimit
+  ) {
+    return badRequest(`\`limit\` must be an integer between 1 and ${MAX_LIMIT}.`);
+  }
+
+  try {
+    await connectDB();
+
+    // Re-read the role from the database.
+    const adminUser = await User.findById(decoded.userId).lean();
+    if (!adminUser) {
+      return unauthorized("User account not found.");
+    }
+    if (adminUser.role !== "admin") {
+      return forbidden("Admin access is required.");
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [events, total] = await Promise.all([
+      Event.find({})
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean<{
+          _id: { toString(): string };
+          title: string;
+          description: string;
+          category: string;
+          city: string;
+          date: Date;
+          price: number;
+          imageUrl: string;
+          isActive: boolean;
+          createdAt: Date;
+          updatedAt: Date;
+        }[]>(),
+      Event.countDocuments({}),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return ok({
+      data: events.map(serializeEvent),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
+  } catch (error: unknown) {
+    const safeMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("[GET /api/admin/events] Unexpected error:", safeMessage);
+    return internalError("An unexpected error occurred.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/events
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request): Promise<Response> {
