@@ -358,6 +358,15 @@ The preview panel updates **immediately** on every theme or sticker change. It d
 
 ## Testing Instructions
 
+### Demo recordings
+
+Two screen recordings are provided in the [`demo-recording/`](demo-recording/) folder:
+
+| File | Viewport |
+|---|---|
+| `community-events-board-demo-desktop.mp4` | Desktop (1280 px+) |
+| `community-events-board-demo-mobile.mp4` | Mobile (375–430 px) |
+
 ### Evaluator flow
 
 1. Visit the live demo at **[https://event-management-sand-six.vercel.app/](https://event-management-sand-six.vercel.app/)** — no local setup required.
